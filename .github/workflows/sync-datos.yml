@@ -42,5 +42,10 @@ jobs:
             echo "Sin cambios."
           else
             git commit -m "Datos actualizados"
-            git push
+            # la app tambien sube (el perfil cifrado): si hay algo nuevo en el repositorio, se incorpora antes de subir
+            for intento in 1 2 3; do
+              git pull --rebase origin main && git push && break
+              echo "Reintentando ($intento)..."
+              sleep 5
+            done
           fi

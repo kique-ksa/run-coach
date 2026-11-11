@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="app-build" content="10.4 · 2026-11-11">
+<meta name="app-build" content="10.5 · 2026-11-11">
 <meta name="application-name" content="Run Kq">
 <meta name="apple-mobile-web-app-title" content="Run Kq">
 <title>Run Kq</title>
@@ -974,6 +974,7 @@ function nuevoEstado(){
     importedSueno: [],
     molestiaHistorial: [],
     nubePerfil: {},        // estado de la copia en la nube: {hash, savedAtNube, ultimaSubida, dispositivo}
+    molestiaUndo: null,    // foto de los días tocados en la última corrección de la molestia (para deshacer)
     molestiaDias: {},      // una entrada por día: {zona, lado, tipo, nivel 0-5, tendencia, agrava[], nota, tratamiento}
     motivoNoHecho: {},     // fecha -> 'molestia' | 'tiempo' | 'cansancio' | 'prefiero no arriesgar'
     ajustesClaude: {},     // fecha -> {accion, km, motivo, creado}: ajuste al plan acordado tras consultar a Claude (solo más conservador)
@@ -1332,13 +1333,79 @@ function episodioMolestia(){
   return {dias:[...supuestos, ...dias], reg, inicio, diasTotales:daysBetween(inicio,TODAY)+1, ultimo, sinDatoHoy:ultimo.fecha!==TODAY, diasSinAnotar:supuestos.length};
 }
 // Rellena con "igual que la última vez" los días que no abriste la app (se marcan como supuestos y se pueden corregir)
-function rellenarDiasSupuestos(){
+function rellenarDiasSupuestos(hasta){ // hasta = primer día que NO se rellena (por defecto, hoy)
   const ep=episodioMolestia(); if(!ep || !ep.diasSinAnotar) return 0;
-  let n=0;
-  for(let f=sumarDias(ep.ultimo.fecha,1); f<TODAY; f=sumarDias(f,1)){
+  const tope=hasta||TODAY; let n=0;
+  for(let f=sumarDias(ep.ultimo.fecha,1); f<tope; f=sumarDias(f,1)){
     if(!state.molestiaDias[f]){ const u=ep.ultimo; state.molestiaDias[f]={zona:u.zona, lado:u.lado||'', tipo:'', nivel:u.nivel, tendencia:'igual', agrava:u.agrava||[], camina:'', nota:'', supuesto:true}; n++; }
   }
   return n;
+}
+// Carreras de Garmin desde la última anotación: si corres, quizá ya no tienes la molestia. La app lo pregunta, nunca lo decide.
+function carrerasConMolestiaAbierta(ep){ return soloCarreras().filter(c=>c.fecha>ep.ultimo.fecha && c.fecha<=TODAY && (c.dist||0)>=3); }
+/* ---- Corregir el pasado de la molestia (con "deshacer" de un nivel: guarda solo los días que se tocan) ---- */
+function fotoMolestia(etiqueta, fechas){
+  const u={creada:TODAY, etiqueta, dias:{}};
+  [...new Set(fechas)].forEach(f=>{
+    u.dias[f]={md:state.molestiaDias[f]?JSON.parse(JSON.stringify(state.molestiaDias[f])):null, hist:state.molestiaHistorial.filter(m=>m.fecha===f).map(m=>Object.assign({},m)), ck:state.checkinByDate[f]?JSON.parse(JSON.stringify(state.checkinByDate[f])):null};
+  });
+  state.molestiaUndo=u;
+}
+function hayDeshacerMolestia(){ const u=state.molestiaUndo; return !!(u && daysBetween(u.creada,TODAY)<=7); }
+function deshacerMolestia(){
+  const u=state.molestiaUndo; if(!u) return false;
+  Object.keys(u.dias).forEach(f=>{ const d=u.dias[f];
+    if(d.md) state.molestiaDias[f]=d.md; else delete state.molestiaDias[f];
+    state.molestiaHistorial=state.molestiaHistorial.filter(m=>m.fecha!==f).concat(d.hist);
+    if(d.ck) state.checkinByDate[f]=d.ck; else delete state.checkinByDate[f];
+  });
+  delete state.molestiaUndo; window.__mqEdit=null; window.__mqCierre=null;
+  saveState(); if(state.profile.onboardingCompletado) recalcularPlan(); renderAll(); return true;
+}
+// fecha = primer día SIN molestia (el día anterior sigue con molestia). -> {ok, msg} o {ok:false, requiereConfirmar:[fechas con anotaciones tuyas]}
+function cerrarMolestiaDesde(fecha, opc){
+  opc=opc||{}; const ep=episodioMolestia();
+  if(!ep) return {ok:false, msg:'No hay ninguna molestia abierta.'};
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha||'') || fecha>TODAY) return {ok:false, msg:'Elige una fecha que no sea futura.'};
+  if(fecha<=ep.inicio) return {ok:false, msg:`La molestia empezó el ${fmtShort(ep.inicio)}: elige una fecha posterior.`};
+  const reales=[];
+  Object.keys(state.molestiaDias).forEach(f=>{ if(f>=fecha && !state.molestiaDias[f].supuesto) reales.push(f); });
+  Object.keys(state.checkinByDate).forEach(f=>{ if(f>=fecha && (state.checkinByDate[f]||{}).molestia==='si' && !reales.includes(f)) reales.push(f); });
+  state.molestiaHistorial.forEach(m=>{ if(m.fecha>=fecha && !reales.includes(m.fecha)) reales.push(m.fecha); });
+  reales.sort();
+  if(reales.length && !opc.confirmado) return {ok:false, requiereConfirmar:reales, msg:`Tienes anotaciones tuyas desde el ${fmtShort(fecha)} (${reales.map(fmtShort).join(', ')}). Si cierras desde ahí, se quitan.`};
+  const tocadas=[]; for(let f=ep.ultimo.fecha; f<=TODAY; f=sumarDias(f,1)) tocadas.push(f);
+  Object.keys(state.molestiaDias).concat(Object.keys(state.checkinByDate)).forEach(f=>{ if(f>=fecha) tocadas.push(f); });
+  fotoMolestia('cerrar desde '+fecha, tocadas);
+  rellenarDiasSupuestos(fecha); // los días anteriores se quedan como "igual", ya guardados
+  Object.keys(state.molestiaDias).forEach(f=>{ if(f>=fecha) delete state.molestiaDias[f]; });
+  state.molestiaHistorial=state.molestiaHistorial.filter(m=>!(m.fecha>=fecha));
+  Object.keys(state.checkinByDate).forEach(f=>{ if(f>fecha && (state.checkinByDate[f]||{}).molestia==='si'){ const c=Object.assign({}, state.checkinByDate[f]); delete c.molestia; state.checkinByDate[f]=c; } });
+  const c0=Object.assign({}, state.checkinByDate[fecha], {molestia:'no'}); if(fecha===TODAY) c0.alarmaSintomas=[]; state.checkinByDate[fecha]=c0;
+  window.__mqCierre=null; window.__mqEdit=null;
+  saveState(); if(state.profile.onboardingCompletado) recalcularPlan(); renderAll();
+  return {ok:true, msg:`Molestia cerrada desde el ${fmtShort(fecha)}.`};
+}
+// accion: 'guardar' (nivel/tendencia/nota/ánimo de ese día) | 'sin' (ese día no había molestia) | 'quitar' (borra la anotación: queda sin dato)
+function editarDiaMolestia(f, accion, datos){
+  const ep=episodioMolestia();
+  if(accion==='sin' && ep && f>ep.ultimo.fecha) return cerrarMolestiaDesde(f); // un día sin anotar al final del episodio: es cerrarla desde ahí
+  fotoMolestia('editar '+f, [f]);
+  if(accion==='guardar'){
+    const base=state.molestiaDias[f] || (ep && ep.dias.find(d=>d.fecha===f && !d.vacio)) || {};
+    const e=Object.assign({zona:(base.zona||(ep&&ep.ultimo&&ep.ultimo.zona)||'Espalda baja'), lado:base.lado||'', tipo:base.tipo||'Molestia leve', tratamiento:base.tratamiento||'No', agrava:base.agrava||[], camina:base.camina||'', tendencia:base.tendencia||''}, datos, {supuesto:false});
+    delete e.animo; state.molestiaDias[f]=e;
+    state.molestiaHistorial=state.molestiaHistorial.filter(m=>!(m.fecha===f && m.tipo!=='Durante o después del entreno'));
+    state.molestiaHistorial.push({fecha:f, zona:e.zona, tipo:e.tipo, nivel:e.nivel?String(e.nivel):'', tratamiento:e.tratamiento, notas:e.nota||''});
+    const c=Object.assign({}, state.checkinByDate[f], {molestia:'si'}); if(datos.animo) c.animo=datos.animo; state.checkinByDate[f]=c;
+  } else {
+    delete state.molestiaDias[f];
+    state.molestiaHistorial=state.molestiaHistorial.filter(m=>m.fecha!==f);
+    const c=Object.assign({}, state.checkinByDate[f]); if(accion==='sin') c.molestia='no'; else delete c.molestia;
+    if(datos && datos.animo) c.animo=datos.animo; state.checkinByDate[f]=c;
+  }
+  window.__mqEdit=null; saveState(); if(state.profile.onboardingCompletado) recalcularPlan(); renderAll();
+  return {ok:true, msg:'Día actualizado.'};
 }
 // Reglas visibles: qué toca hoy con la molestia y por qué (criterio conservador de la app, ver CONOCIMIENTO.molestia_lumbar)
 function decisionMolestia(){
@@ -1358,8 +1425,10 @@ function decisionMolestia(){
   else { decision='esperar'; motivos.push('Va mejor, pero antes de correr conviene confirmar que puedes caminar 30 min sin que aumente (se marca en el formulario).'); }
   if(decision==='esperar' && nivel<=2) motivos.push('Con una molestia leve es muy habitual el miedo a empeorarla: por eso la vuelta es gradual y la primera salida es una prueba corta con andar y trote, no tu sesión normal.');
   if(ep.sinDatoHoy) motivos.push(`No has anotado nada desde el ${fmtShort(u.fecha)} (${ep.diasSinAnotar} día${ep.diasSinAnotar>1?'s':''}): lo tomo como que sigue igual (nivel ${nivel}). Confírmalo abajo para afinar.`);
+  const carrerasAbiertas=carrerasConMolestiaAbierta(ep);
+  if(carrerasAbiertas.length) motivos.push(`Garmin muestra ${carrerasAbiertas.length>1?'carreras':'una carrera'} desde tu última anotación (${carrerasAbiertas.map(c=>fmtShort(c.fecha)+', '+String(c.dist).replace('.',',')+' km').join(' · ')}). Si ya no tienes la molestia, ciérrala desde esa fecha en la tarjeta "Tu molestia"; si no, sigo contando que la tienes.`);
   const consulta = nivel>=4 || (ep.diasTotales>=7 && tend!=='mejor') || ep.diasTotales>=10;
-  return Object.assign({decision, motivos, nivel, tend, consulta}, ep);
+  return Object.assign({decision, motivos, nivel, tend, consulta, carrerasAbiertas}, ep);
 }
 function diasConsecutivosMolestia(){ const e=episodioMolestia(); return e?e.diasTotales:0; }
 function nivelEscalacionMolestia(){
@@ -2305,6 +2374,40 @@ function planHTMLMolestia(dm){
     <div style="font-size:12px; color:var(--text-dim); margin:10px 0 2px;">Qué lo cambiaría</div>
     <div style="font-size:12.5px; line-height:1.5;">Podrás probar algo muy suave cuando el dolor sea de 2 o menos, no vaya peor, los gestos de cada día (agacharte, levantarte, andar) no te molesten y puedas caminar 30 min sin que aumente. Actualízalo en la tarjeta de arriba.</div>`;
 }
+const fmtKm=x=>String(x).replace('.',',');
+function mqDeshacerHTML(){
+  if(!hayDeshacerMolestia()) return '';
+  return `<div style="font-size:12px; color:var(--text-dim); margin-top:10px;">Última corrección: ${escapeHTML(state.molestiaUndo.etiqueta.replace(/^cerrar desde (\S+)/,(m,f)=>'cerrada desde el '+fmtShort(f)).replace(/^editar (\S+)/,(m,f)=>'día '+fmtShort(f)+' editado'))}. <a href="#" id="mq-deshacer" style="color:var(--accent);">Deshacer</a></div>`;
+}
+// "Ya no la tengo": qué día fue el primero sin molestia (hoy, ayer, hace 3 días o una fecha libre)
+function mqCierreHTML(dm){
+  const c=window.__mqCierre; if(!c) return '';
+  const ops=[['Hoy',TODAY],['Ayer',sumarDias(TODAY,-1)],['Hace 3 días',sumarDias(TODAY,-3)]].filter(o=>o[1]>dm.inicio);
+  const sel=c.fecha||'';
+  const carr=dm.carrerasAbiertas||[];
+  const pista=carr.length?`<div style="font-size:12px; color:var(--text-dim); margin:6px 0;">Garmin muestra que corriste: ${carr.map(x=>`${fmtShort(x.fecha)} (${fmtKm(x.dist)} km)`).join(' · ')}.</div>`:'';
+  const conf=c.confirmar?`<div style="font-size:12px; line-height:1.5; color:var(--amber); margin:8px 0;">${escapeHTML(c.confirmar)} <b>¿Las quito?</b></div>`:'';
+  return `<div id="mq-cierre" style="background:var(--surface-2); border-radius:14px; padding:10px 12px; margin:10px 0;">
+    <div style="font-size:12.5px; font-weight:600; margin-bottom:6px;">¿Desde qué día ya no la tenías?</div>
+    <div style="font-size:12px; color:var(--text-dim); margin-bottom:6px;">Elige el primer día sin molestia: los anteriores se quedan como estaban.</div>
+    <div class="seg" id="mq-cierre-seg">${ops.map(o=>`<button type="button" data-f="${o[1]}" class="${sel===o[1]?'selected':''}">${o[0]}</button>`).join('')}</div>
+    <div style="margin:8px 0 2px; display:flex; gap:8px; align-items:center;"><label style="font-size:12px; color:var(--text-dim);">Otra fecha</label><div class="field" style="flex:1; margin:0;"><input type="date" id="mq-cierre-fecha" min="${sumarDias(dm.inicio,1)}" max="${TODAY}" value="${sel}"></div></div>
+    ${pista}${conf}
+    <div class="btn-row" style="margin-top:8px;"><button class="btn small" id="mq-cierre-ok" style="flex:1;" ${sel?'':'disabled'}>${c.confirmar?'Sí, cerrar y quitarlas':(sel?('Cerrar desde el '+fmtShort(sel)):'Elige un día')}</button><button class="btn ghost small" id="mq-cierre-no" style="flex:1;">Cancelar</button></div></div>`;
+}
+// Editor de un día pasado de la cronología
+function mqEditorHTML(dm, f){
+  const ed=window.__mqEdit; if(!ed || ed.f!==f) return '';
+  const cap=t=>t[0].toUpperCase()+t.slice(1), seg=(k,vals,cur)=>`<div class="seg">${vals.map(v=>`<button type="button" data-mqe="${k}" data-v="${v}" class="${String(cur)===String(v)?'selected':''}">${typeof v==='number'?v:cap(v)}</button>`).join('')}</div>`;
+  return `<div id="mq-editor" style="background:var(--surface-2); border-radius:12px; padding:10px; margin:4px 0 8px;">
+    <div style="font-size:12px; font-weight:600; margin-bottom:6px;">${fmtShort(f)}: ¿cómo estuvo ese día?</div>
+    <div style="font-size:11.5px; color:var(--text-dim); margin:4px 0 2px;">Dolor (1-5)</div>${seg('nivel',[1,2,3,4,5],ed.nivel||'')}
+    <div style="font-size:11.5px; color:var(--text-dim); margin:6px 0 2px;">Respecto al día anterior</div>${seg('tendencia',['mejor','igual','peor'],ed.tendencia||'')}
+    <div style="font-size:11.5px; color:var(--text-dim); margin:6px 0 2px;">Cómo te encontrabas</div>${seg('animo',['bien','normal','mal'],ed.animo||'')}
+    <div class="field" style="margin:8px 0 6px;"><input type="text" id="mq-ed-nota" placeholder="Nota (opcional)" value="${escapeHTML(ed.nota||'')}"></div>
+    <div class="btn-row"><button class="btn small" id="mq-ed-guardar" style="flex:1;" ${ed.nivel?'':'disabled'}>Guardar día</button><button class="btn ghost small" id="mq-ed-cerrar" style="flex:1;">Cerrar</button></div>
+    <div class="btn-row" style="margin-top:6px; flex-wrap:wrap;"><button class="btn ghost small" id="mq-ed-sin" style="flex:1;">Sin molestia ese día</button><button class="btn ghost small" id="mq-ed-quitar" style="flex:1;">Quitar anotación</button>${f>dm.inicio?'<button class="btn ghost small" id="mq-ed-desde" style="flex:1 1 100%; margin-top:6px;">Desde aquí ya no la tenía</button>':''}</div></div>`;
+}
 function renderMolestiaCard(){
   const el=document.getElementById('molestia-card'); if(!el) return;
   const dm=decisionMolestia();
@@ -2314,10 +2417,11 @@ function renderMolestiaCard(){
     if(iv && pasados>=1 && pasados<=21){
       const hasta=sumarDias(iv.L, iv.sinCalidad?14:21);
       el.style.display='block';
-      el.innerHTML=`<h3>Vuelta tras tu molestia</h3><div style="font-size:12.5px; line-height:1.55;">Tu última molestia anotada fue el ${fmtShort(iv.L)}. ${iv.sinCalidad?`Hasta el ${fmtShort(hasta)} el plan va <b>sin series ni tempo</b>`:`Hasta el ${fmtShort(hasta)} el plan sube con calma`}${iv.tope?` y con un máximo de <b>${String(iv.tope).replace('.',',')} km</b> a la semana (${Math.round(iv.factor*100)} % de tu media previa)`:''}. Si vuelve la molestia, pulsa "Sí" en <a href="#" id="mq-reabrir" style="color:var(--accent);">Cómo estoy hoy</a> y lo vuelvo a ajustar. <span style="color:var(--text-dim);">Cautela propia de la app, no una pauta médica.</span></div>`;
+      el.innerHTML=`<h3>Vuelta tras tu molestia</h3><div style="font-size:12.5px; line-height:1.55;">Tu última molestia anotada fue el ${fmtShort(iv.L)}. ${iv.sinCalidad?`Hasta el ${fmtShort(hasta)} el plan va <b>sin series ni tempo</b>`:`Hasta el ${fmtShort(hasta)} el plan sube con calma`}${iv.tope?` y con un máximo de <b>${String(iv.tope).replace('.',',')} km</b> a la semana (${Math.round(iv.factor*100)} % de tu media previa)`:''}. Si vuelve la molestia, pulsa "Sí" en <a href="#" id="mq-reabrir" style="color:var(--accent);">Cómo estoy hoy</a> y lo vuelvo a ajustar. <span style="color:var(--text-dim);">Cautela propia de la app, no una pauta médica.</span></div>${mqDeshacerHTML()}`;
       return;
     }
   }
+  if(!dm && state.profile.onboardingCompletado && hayDeshacerMolestia()){ el.style.display='block'; el.innerHTML=`<h3>Molestia cerrada</h3><div style="font-size:12.5px; line-height:1.55;">Ya no hay ninguna molestia abierta. Como duró poco, no hace falta un plan de vuelta especial.</div>${mqDeshacerHTML()}`; return; }
   if(!dm || !state.profile.onboardingCompletado){ el.style.display='none'; el.innerHTML=''; return; }
   el.style.display='block';
   const u=dm.ultimo, hoy=state.molestiaDias[TODAY]||{};
@@ -2330,8 +2434,10 @@ function renderMolestiaCard(){
     const dt=new Date(f+'T00:00:00Z');
     const pie = m ? `<span style="color:${colorN(m.nivel)}; font-family:'JetBrains Mono';">${m.supuesto?'~':''}${(m.conDetalle||m.supuesto||m.supuestoGuardado)?m.nivel+'/5':'sí'}</span>${m.supuesto?' <span style="color:var(--text-dim)">sin abrir la app: se supone igual</span>':(m.tendencia?` <span style="color:var(--text-dim)">${tendTxt[m.tendencia]||''}</span>`:'')}${(m.agrava||[]).length?` <span style="color:var(--text-dim)">· ${escapeHTML(m.agrava.join(', '))}</span>`:''}` : '<span style="color:var(--text-dim)">sin dato</span>';
     const sesion = nh ? `<div style="font-size:11px; color:var(--text-dim); padding-left:34px;">⏸ ${escapeHTML(nh.dia.tipo==='Carrera'?nh.dia.subtipo:'clase')} no hecha · <a href="#" class="mnh" data-f="${f}" style="color:var(--accent);">${escapeHTML(nh.motivo)}</a></div>` : '';
-    return `<div style="font-size:12px; padding:4px 0; border-bottom:1px solid var(--line);"><span style="display:inline-block; width:34px; color:var(--text-dim); font-family:'JetBrains Mono';">${DIA_LETRA[dt.getUTCDay()]} ${dt.getUTCDate()}</span>${pie}</div>${sesion}`;
+    const abierto=window.__mqEdit && window.__mqEdit.f===f;
+    return `<div class="mq-dia" data-f="${f}" style="font-size:12px; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer; ${abierto?'background:var(--surface-2);':''}"><span style="display:inline-block; width:34px; color:var(--text-dim); font-family:'JetBrains Mono';">${DIA_LETRA[dt.getUTCDay()]} ${dt.getUTCDate()}</span>${pie} <span style="color:var(--accent); font-size:11px;">· editar</span></div>${sesion}${mqEditorHTML(dm,f)}`;
   };
+  const carr=dm.carrerasAbiertas||[];
   const resumen=`Empezó el ${fmtShort(dm.inicio)}; llevas ${dm.diasTotales} día${dm.diasTotales>1?'s':''}${dm.reg.length<dm.diasTotales?` (${dm.reg.length} con anotación; el resto, sin abrir la app, los cuento como igual)`:''}.`;
   const consejo=`<div style="font-size:12px; line-height:1.55;">
       <div>• Lo habitual en un dolor de espalda sin señales de alarma es <b>seguir activo con lo que no duela</b> (caminar) en lugar de guardar reposo total, y no pedir pruebas de imagen de rutina (<a href="https://www.nice.org.uk/ng59" target="_blank" rel="noopener" style="color:var(--accent);">guía NICE NG59</a>).</div>
@@ -2340,25 +2446,62 @@ function renderMolestiaCard(){
       <div style="color:var(--text-dim); margin-top:6px;">Orientación general; no sustituye la valoración de un profesional.</div></div>`;
   el.innerHTML=`<h3>Tu molestia ${u.zona?`<span class="muted">· ${escapeHTML(u.zona)}${u.lado?' · '+({izq:'izquierdo',der:'derecho',ambos:'ambos lados'}[u.lado]||''):''}</span>`:''}</h3>
     <div style="font-size:12.5px; line-height:1.5; margin-bottom:10px;">${resumen}</div>
-    ${dm.sinDatoHoy?`<div style="background:var(--amber-soft); border:1px solid rgba(240,180,41,.35); border-radius:14px; padding:10px 12px; margin-bottom:12px;"><div style="font-size:12.5px; line-height:1.5;">Tu última anotación fue el <b>${fmtShort(u.fecha)}</b> (dolor ${u.nivel}/5). No pasa nada por no abrir la app: <b>cuento que sigue igual</b> hasta que me digas otra cosa. ¿Cómo está hoy?</div><div class="btn-row" style="margin-top:8px;"><button class="btn small" id="mq-igual" style="flex:1;">Sigue igual</button></div></div>`:''}
+    ${carr.length&&!window.__mqCierre?`<div id="mq-carreras" style="background:var(--amber-soft); border:1px solid rgba(240,180,41,.35); border-radius:14px; padding:10px 12px; margin-bottom:12px;"><div style="font-size:12.5px; line-height:1.5;">Desde tu última anotación (${fmtShort(u.fecha)}) has corrido: <b>${carr.map(x=>`${fmtShort(x.fecha)}, ${fmtKm(x.dist)} km`).join(' · ')}</b>. ¿Sigue la molestia? No la cierro yo: lo decides tú.</div><div class="btn-row" style="margin-top:8px; flex-wrap:wrap;"><button class="btn small" id="mq-desde-carrera" data-f="${carr[0].fecha}" style="flex:1 1 100%;">Ya no la tengo desde el ${fmtShort(carr[0].fecha)}</button><button class="btn ghost small" id="mq-sigue" style="flex:1;">Sigue (la anoto ahora)</button><button class="btn ghost small" id="mq-otra-fecha" style="flex:1;">Elegir otra fecha</button></div></div>`:''}
+    ${mqCierreHTML(dm)}
+    ${dm.sinDatoHoy&&!carr.length?`<div style="background:var(--amber-soft); border:1px solid rgba(240,180,41,.35); border-radius:14px; padding:10px 12px; margin-bottom:12px;"><div style="font-size:12.5px; line-height:1.5;">Tu última anotación fue el <b>${fmtShort(u.fecha)}</b> (dolor ${u.nivel}/5). No pasa nada por no abrir la app: <b>cuento que sigue igual</b> hasta que me digas otra cosa. ¿Cómo está hoy?</div><div class="btn-row" style="margin-top:8px;"><button class="btn small" id="mq-igual" style="flex:1;">Sigue igual</button></div></div>`:''}
     <div class="field" style="margin-bottom:8px;"><label>Dolor hoy (1 apenas se nota · 5 intenso)</label><div class="seg">${[1,2,3,4,5].map(n=>`<button type="button" data-mq="nivel" data-v="${n}" class="${hoy.nivel===n?'selected':''}">${n}</button>`).join('')}</div></div>
     <div class="field" style="margin-bottom:8px;"><label>Respecto a ayer</label><div class="seg">${['mejor','igual','peor'].map(t=>`<button type="button" data-mq="tendencia" data-v="${t}" class="${hoy.tendencia===t?'selected':''}">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div></div>
     <div class="btn-row" style="margin-top:6px;"><button class="btn ghost small" id="mq-detalle" style="flex:1;">Más detalle</button><button class="btn ghost small" id="mq-fin" style="flex:1;">Ya no la tengo</button></div>
-    <details class="plegable" style="margin-top:10px;"><summary style="font-size:12px; color:var(--text-dim);">Qué ha pasado, día a día</summary><div style="margin-top:6px;">${dias.slice().reverse().map(linea).join('')}</div></details>
+    ${mqDeshacerHTML()}
+    <details class="plegable" style="margin-top:10px;" ${window.__mqEdit?'open':''}><summary style="font-size:12px; color:var(--text-dim);">Qué ha pasado, día a día (toca un día para corregirlo)</summary><div style="margin-top:6px;">${dias.slice().reverse().map(linea).join('')}</div></details>
     <details class="plegable" style="margin-top:8px;" ${dm.consulta?'open':''}><summary style="font-size:12px; color:var(--text-dim);">Consejo y cuándo consultar</summary><div style="margin-top:6px;">${consejo}</div></details>`;
 }
+document.addEventListener('change', e=>{
+  if(e.target && e.target.id==='mq-cierre-fecha'){ window.__mqCierre={fecha:e.target.value||''}; renderMolestiaCard(); }
+});
 document.addEventListener('click', e=>{
   const q=e.target.closest('#molestia-card [data-mq]');
   if(q){ registrarMolestiaHoy({[q.dataset.mq]: q.dataset.mq==='nivel' ? +q.dataset.v : q.dataset.v}); return; }
   if(e.target.closest('#mq-detalle')){ abrirEstado(); return; }
   if(e.target.closest('#mq-reabrir')){ e.preventDefault(); abrirEstado(); return; }
   if(e.target.closest('#mq-igual')){ registrarMolestiaHoy({tendencia:'igual'}); toast('Anotado: sigue igual'); return; }
-  if(e.target.closest('#mq-fin')){
-    rellenarDiasSupuestos();
-    state.checkinByDate[TODAY]=Object.assign({}, state.checkinByDate[TODAY], {molestia:'no', alarmaSintomas:[]});
-    delete state.molestiaDias[TODAY];
-    state.molestiaHistorial=state.molestiaHistorial.filter(m=>!(m.fecha===TODAY && m.tipo!=='Durante o después del entreno'));
-    saveState(); if(state.profile.onboardingCompletado) recalcularPlan(); renderAll(); toast('Anotado: sin molestia hoy. Tu plan de vuelta se ajusta solo.'); return;
+  // --- cerrar la molestia con fecha ---
+  if(e.target.closest('#mq-fin')){ window.__mqCierre={fecha:TODAY}; window.__mqEdit=null; renderMolestiaCard(); return; }
+  if(e.target.closest('#mq-otra-fecha')){ window.__mqCierre={fecha:''}; renderMolestiaCard(); return; }
+  const dc=e.target.closest('#mq-desde-carrera');
+  if(dc){ const r=cerrarMolestiaDesde(dc.dataset.f); if(r.requiereConfirmar){ window.__mqCierre={fecha:dc.dataset.f, confirmar:r.msg}; renderMolestiaCard(); } else toast(r.msg+' Tu plan de vuelta se ajusta solo.'); return; }
+  if(e.target.closest('#mq-sigue')){ registrarMolestiaHoy({tendencia:'igual'}); toast('Anotado: sigue la molestia (los días sin anotar cuentan como igual)'); return; }
+  const cs=e.target.closest('#mq-cierre-seg button');
+  if(cs){ window.__mqCierre={fecha:cs.dataset.f}; renderMolestiaCard(); return; }
+  if(e.target.closest('#mq-cierre-no')){ window.__mqCierre=null; renderMolestiaCard(); return; }
+  if(e.target.closest('#mq-cierre-ok')){
+    const c=window.__mqCierre||{}, inp=document.getElementById('mq-cierre-fecha'), f=(inp&&inp.value)||c.fecha;
+    const r=cerrarMolestiaDesde(f, {confirmado:!!c.confirmar});
+    if(r.requiereConfirmar){ window.__mqCierre={fecha:f, confirmar:r.msg}; renderMolestiaCard(); }
+    else if(!r.ok){ toast(r.msg); }
+    else toast(r.msg+' Tu plan de vuelta se ajusta solo.');
+    return;
+  }
+  if(e.target.closest('#mq-deshacer')){ e.preventDefault(); if(deshacerMolestia()) toast('Corrección deshecha'); return; }
+  // --- editar un día pasado ---
+  const dd=e.target.closest('#molestia-card .mq-dia');
+  if(dd){
+    const f=dd.dataset.f;
+    if(window.__mqEdit && window.__mqEdit.f===f){ window.__mqEdit=null; renderMolestiaCard(); return; }
+    const ep=episodioMolestia(), mm=ep && ep.dias.find(x=>x.fecha===f && !x.vacio), ck=state.checkinByDate[f]||{};
+    window.__mqCierre=null;
+    window.__mqEdit={f, nivel:mm?mm.nivel:null, tendencia:mm?(mm.tendencia||''):'', animo:ck.animo||'', nota:mm?(mm.nota||''):''};
+    renderMolestiaCard(); return;
+  }
+  const me=e.target.closest('#molestia-card [data-mqe]');
+  if(me && window.__mqEdit){ const n=document.getElementById('mq-ed-nota'); if(n) window.__mqEdit.nota=n.value; window.__mqEdit[me.dataset.mqe]= me.dataset.mqe==='nivel' ? +me.dataset.v : me.dataset.v; renderMolestiaCard(); return; }
+  if(window.__mqEdit && e.target.closest('#molestia-card')){
+    const ed=window.__mqEdit, nota=((document.getElementById('mq-ed-nota')||{}).value||'').trim();
+    if(e.target.closest('#mq-ed-cerrar')){ window.__mqEdit=null; renderMolestiaCard(); return; }
+    if(e.target.closest('#mq-ed-guardar')){ editarDiaMolestia(ed.f,'guardar',{nivel:ed.nivel, tendencia:ed.tendencia, nota, animo:ed.animo}); toast('Día guardado'); return; }
+    if(e.target.closest('#mq-ed-sin')){ const r=editarDiaMolestia(ed.f,'sin',{animo:ed.animo}); toast(r.msg); return; }
+    if(e.target.closest('#mq-ed-quitar')){ editarDiaMolestia(ed.f,'quitar',{animo:ed.animo}); toast('Anotación quitada'); return; }
+    if(e.target.closest('#mq-ed-desde')){ const r=cerrarMolestiaDesde(ed.f); if(r.requiereConfirmar){ window.__mqEdit=null; window.__mqCierre={fecha:ed.f, confirmar:r.msg}; renderMolestiaCard(); } else toast(r.msg); return; }
   }
   const mnh=e.target.closest('.mnh');
   if(mnh){ e.preventDefault(); const f=mnh.dataset.f, act=state.motivoNoHecho[f]||'molestia'; state.motivoNoHecho[f]=MOTIVOS_NO_HECHO[(MOTIVOS_NO_HECHO.indexOf(act)+1)%MOTIVOS_NO_HECHO.length]; saveState(); renderMolestiaCard(); }
@@ -2419,6 +2562,7 @@ function textoContextoClaude(op, pregunta){
     L.push(`- ${u.zona||'sin zona anotada'}${u.lado?' ('+LADO[u.lado]+')':''}; empezó el ${ft(dm.inicio)}; llevo ${dm.diasTotales} días (los días que no abro la app cuentan como "igual").`);
     L.push(`- Dolor actual ${u.nivel}/5${dm.tend?`, ${dm.tend} respecto a ayer`:''}${(u.agrava||[]).length?`; me molesta al: ${u.agrava.join(', ')}`:''}${u.camina==='si'?'; puedo caminar 30 min sin que aumente':(u.camina==='no'?'; NO puedo caminar 30 min sin que aumente':'')}.`);
     L.push(`- Decisión actual de la app: ${({parar:'no correr', esperar:'esperar, no correr aún', suave:'solo algo suave', probar:'prueba suave posible'})[dm.decision]} (${dm.motivos.join(' ')})`);
+    if((dm.carrerasAbiertas||[]).length) L.push(`- Garmin muestra carreras desde mi última anotación (${fmtShort(u.fecha)}): ${dm.carrerasAbiertas.map(c=>`${ft(c.fecha)} ${fmtKm(c.dist)} km${c.fc?', FC '+c.fc:''}`).join(' | ')}. Aún no he dicho si la molestia sigue o ya se fue; la app la sigue contando como activa. Pregúntame cómo estoy antes de decidir.`);
     const notas=Object.keys(state.molestiaDias).sort().slice(-5).map(f=>state.molestiaDias[f].nota?`${fmtShort(f)}: ${state.molestiaDias[f].nota}`:'').filter(Boolean);
     if(notas.length) L.push(`- Mis notas sobre la molestia: ${notas.join(' | ')}`);
   } else if(op.molestia){ L.push('', '## Mi molestia', '- Ahora mismo no tengo ninguna molestia anotada.'); }
@@ -4191,7 +4335,7 @@ document.getElementById('perfil-aplicar').addEventListener('click', ()=>{
    Copia completa = todo lo que la persona ha anotado en este dispositivo (sin lo que se rehace solo: datos de Garmin y plan).
    Perfil en la nube = esa misma copia, cifrada con la clave de los datos, en data/<persona>.perfil.enc del repositorio:
    así, con el nombre y la clave, un dispositivo nuevo trae Garmin Y el perfil y no pregunta nada. */
-const COPIA_EXCLUIR=['importedActividades','importedSueno','planSemanal','ultimoGenerado','lastImport','nubePerfil'];
+const COPIA_EXCLUIR=['importedActividades','importedSueno','planSemanal','ultimoGenerado','lastImport','nubePerfil','molestiaUndo'];
 function estadoParaCopia(){ const o={}; Object.keys(state).forEach(k=>{ if(!COPIA_EXCLUIR.includes(k)) o[k]=state[k]; }); return o; }
 function copiaCompletaTexto(){
   return JSON.stringify({runkq_copia:1, creada:TODAY, version:APP_BUILD, nombre:store.personas[store.activeId].nombre, estado:estadoParaCopia()});
@@ -4944,10 +5088,13 @@ function analizarSesion(a){
     const z=a.fc ? zonaDeFC(a.fc) : null;
     const cr=planC ? claseReal(a, dia) : null;
     // salida hecha con una molestia en curso: se valora como prueba suave, no como la sesión prevista
-    const epM=episodioMolestia(), enMolestia=!!(epM && a.fecha>=epM.inicio);
+    // por día: cuenta si ese día tenía molestia anotada o supuesta (también tras cerrar la molestia, para los días anteriores al cierre)
+    const epM=episodioMolestia(), dMol=molestiaDelDia(a.fecha), enMolestia=!!(dMol || (epM && a.fecha>=epM.inicio && a.fecha<=TODAY));
+    const molSupuesta=!!(epM && enMolestia && (!dMol || dMol.supuesto) && a.fecha>epM.ultimo.fecha);
     const sub=planC ? (enMolestia ? 'Prueba suave' : dia.subtipo) : null;
     const suave=sub ? ['Continuo suave','Largo','Activación','Prueba suave'].includes(sub) : null;
     if(enMolestia) N('perfil','Salida hecha con tu molestia en curso: la valoro como una prueba suave, no como la sesión prevista. Lo importante ahora es cómo responde tu espalda esta noche y mañana por la mañana (anótalo en "Cómo estoy hoy").');
+    if(molSupuesta) N('perfil','Ese día no habías anotado nada sobre la molestia y la cuento como si siguiera. Si ya no la tenías, ciérrala desde esa fecha en la tarjeta "Tu molestia" (Ya no la tengo) y esta salida se valorará como normal.');
     const calidad=cr==='continuo' ? false : (sub ? ['Series','Tempo'].includes(sub) : false);
     if(planC && dia.subtipo==='Series' && cr) cambioSeries=cr;
     if(!planC) N('perfil','Esta salida no estaba en el plan de ese día: la valoro con tu historial y lo que dicen tus pulsaciones.');

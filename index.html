@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="app-build" content="10.3 · 2026-11-08">
+<meta name="app-build" content="10.4 · 2026-11-11">
 <meta name="application-name" content="Run Kq">
 <meta name="apple-mobile-web-app-title" content="Run Kq">
 <title>Run Kq</title>
@@ -678,6 +678,12 @@
         <div class="field" style="margin-top:12px;"><label>Restaurar una copia</label><textarea id="copia-pegar" rows="3" style="width:100%; font-size:11px;" placeholder="Pega aquí el texto de la copia, o elige el archivo"></textarea></div>
         <div class="btn-row"><button class="btn small" id="copia-restaurar">Restaurar el texto pegado</button><label class="btn ghost small file-label" style="flex:none; margin:0;">Elegir archivo<input type="file" id="copia-archivo" accept=".json,application/json" style="display:none;"></label></div>
         <div id="copia-aviso" style="font-size:11.5px; color:var(--text-dim); margin-top:8px; line-height:1.5;"></div>
+        <div style="border-top:1px solid var(--line); margin-top:14px; padding-top:12px;">
+          <div style="font-size:13px; font-weight:600; margin-bottom:4px;">Copia en la nube <span class="muted" style="font-weight:400; font-size:11px;">(cifrada con tu clave)</span></div>
+          <div style="font-size:11.5px; color:var(--text-dim); line-height:1.5;">Guarda esta misma copia en tu repositorio, <b>cifrada</b>, una vez al día y cuando cambias algo. En un dispositivo nuevo, con tu nombre y tu clave, la app la trae sola y <b>no te pregunta nada</b>.</div>
+          <div id="nubeperfil-estado" style="font-size:12px; line-height:1.5; margin:8px 0;"></div>
+          <div class="btn-row"><button class="btn small" id="nubeperfil-guardar">Guardar ahora</button><button class="btn ghost small" id="nubeperfil-traer">Traer de la nube</button></div>
+        </div>
       </details>
 
       <details class="card plegable">
@@ -863,6 +869,15 @@
     <button class="btn ghost" id="clave-despues" style="width:100%; margin-top:6px;">Más tarde</button>
   </div>
 
+  <div id="restaurar-modal" style="position:absolute; inset:0; background:var(--bg); z-index:95; overflow-y:auto; padding:22px 20px 40px; display:none;">
+    <div class="sheet-cab"><button class="btn ghost small" id="restaurar-cerrar">‹ Volver</button>
+    <h1 class="page-title">Ya tengo una copia</h1></div>
+    <div style="font-size:12.5px; line-height:1.55; color:var(--text-dim); margin-bottom:12px;">Si ya usabas la app en otro dispositivo o dirección, <b style="color:var(--text)">pega aquí su copia</b> (o elige el archivo) y te ahorras el cuestionario. Vale la <b style="color:var(--text)">copia completa</b> (Yo › Copia completa de mis datos) o el texto de <b style="color:var(--text)">Mostrar mi perfil</b>.</div>
+    <div class="field"><textarea id="restaurar-texto" rows="6" style="font-size:11px;" placeholder="Pega aquí el texto de la copia"></textarea></div>
+    <div class="btn-row"><button class="btn" id="restaurar-aplicar" style="flex:1;">Restaurar</button><label class="btn ghost file-label" style="flex:none; margin:0;">Elegir archivo<input type="file" id="restaurar-archivo" accept=".json,application/json,text/plain" style="display:none;"></label></div>
+    <div id="restaurar-aviso" style="font-size:12px; line-height:1.55; margin-top:12px;"></div>
+  </div>
+
   <div id="persona-modal" style="position:absolute; inset:0; background:var(--bg); z-index:60; overflow-y:auto; padding:22px 20px; display:none;">
     <div class="eyebrow">Run Kq</div>
     <h1 class="page-title" id="persona-titulo">¿Quién eres?</h1>
@@ -871,6 +886,7 @@
       <h3>Añadir persona</h3>
       <div class="field"><label>Nombre</label><input type="text" id="persona-nuevo-nombre" placeholder="ej. Ana"></div>
       <button class="btn" id="persona-crear" style="width:100%;">Crear y empezar</button>
+      <button class="btn ghost" id="persona-restaurar" style="width:100%; margin-top:8px;">Ya tengo una copia: restaurarla</button>
     </div>
     <button class="btn ghost" id="persona-cerrar" style="width:100%; display:none;">Cerrar</button>
   </div>
@@ -878,6 +894,7 @@
   <div id="onboarding-modal" style="position:absolute; inset:0; background:var(--bg); z-index:50; overflow-y:auto; padding:22px 20px; display:none;">
     <div class="eyebrow">Alta inicial</div>
     <h1 class="page-title" id="ob-titulo-paso">Tu objetivo</h1>
+    <button class="btn ghost small" id="ob-restaurar" style="width:100%; margin:-6px 0 12px;">¿Ya usabas la app? Ya tengo una copia: restaurarla</button>
     <div id="ob-paso-body"></div>
     <div class="btn-row" style="margin-top:18px;">
       <button class="btn ghost" id="ob-atras" style="display:none;">Atrás</button>
@@ -956,6 +973,7 @@ function nuevoEstado(){
     importedActividades: [],
     importedSueno: [],
     molestiaHistorial: [],
+    nubePerfil: {},        // estado de la copia en la nube: {hash, savedAtNube, ultimaSubida, dispositivo}
     molestiaDias: {},      // una entrada por día: {zona, lado, tipo, nivel 0-5, tendencia, agrava[], nota, tratamiento}
     motivoNoHecho: {},     // fecha -> 'molestia' | 'tiempo' | 'cansancio' | 'prefiero no arriesgar'
     ajustesClaude: {},     // fecha -> {accion, km, motivo, creado}: ajuste al plan acordado tras consultar a Claude (solo más conservador)
@@ -1052,7 +1070,9 @@ function saveState(){
   }catch(e){
     console.error('No se pudo guardar', e);
     if(!window.__avisoGuardado){ window.__avisoGuardado=true; try{ toast('⚠️ No se ha podido guardar en este dispositivo (¿poco espacio o modo privado?)', true); }catch(_){} setTimeout(()=>{ window.__avisoGuardado=false; }, 15000); }
+    return;
   }
+  try{ programarSubidaPerfil(false); }catch(_){ /* aún no está lista la parte de la nube */ }
 }
 async function loadState(){ loadStore(); }
 function toast(msg, aviso){
@@ -2952,13 +2972,26 @@ async function descifrarArchivo(texto, clave){
   const k=await crypto.subtle.deriveKey({name:'PBKDF2', salt:bytesDeB64(o.salt), iterations:o.iter, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, false, ['decrypt']);
   return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM', iv:bytesDeB64(o.iv)}, k, bytesDeB64(o.ct)));
 }
+async function cifrarArchivo(texto, clave){ // mismo formato que garmin-sync (cifrado.py): AES-256-GCM, clave por PBKDF2-SHA256 de 600.000 vueltas
+  const sal=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12)), iter=600000;
+  const base=await crypto.subtle.importKey('raw', new TextEncoder().encode(clave.trim().toLowerCase()), 'PBKDF2', false, ['deriveKey']);
+  const k=await crypto.subtle.deriveKey({name:'PBKDF2', salt:sal, iterations:iter, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, false, ['encrypt']);
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, k, new TextEncoder().encode(texto)));
+  const b64=u=>{ let s=''; for(let i=0;i<u.length;i+=8192) s+=String.fromCharCode.apply(null, u.subarray(i,i+8192)); return btoa(s); };
+  return JSON.stringify({v:1, kdf:'PBKDF2-SHA256', iter, salt:b64(sal), iv:b64(iv), ct:b64(ct)});
+}
+// Direcciones de GitHub (el simulador del PC las sustituye por una nube de prueba local)
+const GH_API=window.RUNKQ_API||'https://api.github.com';
+const GH_RAW=window.RUNKQ_RAW||'https://raw.githubusercontent.com';
+const ghHeaders=tok=>({Authorization:'Bearer '+tok, Accept:'application/vnd.github+json', 'X-GitHub-Api-Version':'2022-11-28'});
 function repoGitHub(){ // si la app está en <usuario>.github.io/<repo>/, de ahí salen el usuario y el repositorio
+  if(window.RUNKQ_REPO) return window.RUNKQ_REPO;
   const h=location.hostname, seg=location.pathname.split('/').filter(Boolean)[0];
   return (h.endsWith('.github.io') && seg) ? {usuario:h.split('.')[0], repo:seg} : null;
 }
 function urlsDatosNube(slug){
   const r=repoGitHub(), u=[];
-  if(r) u.push(`https://raw.githubusercontent.com/${r.usuario}/${r.repo}/main/data/${slug}.enc`); // lo más fresco
+  if(r) u.push(`${GH_RAW}/${r.usuario}/${r.repo}/main/data/${slug}.enc`); // lo más fresco
   u.push(`data/${slug}.enc`);
   return u;
 }
@@ -2981,7 +3014,7 @@ async function leerDatosNube(slug){ // -> {estado:'ok'|'sin-archivo'|'necesita-c
 function pintarPideClave(cont){
   const slug=slugPersona(), mal=window.__nube && window.__nube.estado==='clave-incorrecta';
   cont.innerHTML=`<div class="molestia-extra" style="margin-bottom:10px;">
-    <div style="font-size:12px; line-height:1.5;">${mal?'<b style="color:var(--red)">Esa clave no es correcta.</b> ':''}Tus datos de Garmin están en la nube <b>cifrados</b>. Escribe la clave de tus datos para descifrarlos en este dispositivo; solo hace falta una vez.</div>
+    <div style="font-size:12px; line-height:1.5;">${mal?'<b style="color:var(--red)">Esa clave no es correcta.</b> ':''}Tus datos de Garmin están en la nube <b>cifrados</b>. Esta clave los abre en este dispositivo <b>y también trae tu perfil guardado</b> (objetivo, días, clases, notas…), para que no tengas que rellenar nada otra vez. Solo hace falta una vez en cada dispositivo.</div>
     <div class="field" style="margin-top:8px;"><label>Clave de tus datos</label><input type="text" class="in-clave" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="xxxx-xxxx-xxxx-xxxx-xxxx"></div>
     <div class="btn-row"><button class="btn small btn-clave">Guardar clave</button></div>
     <div class="msg-clave" style="font-size:11.5px; color:var(--text-dim); margin-top:6px;"></div></div>`;
@@ -3008,7 +3041,7 @@ function cargarDatosAuto(cb){ // cb(resultado): 'nuevo' | 'sin-cambios' | 'no-ar
   window.RUNCOACH_DATOS=window.RUNCOACH_DATOS||{};
   const id=store.activeId;
   let fuente='script';
-  const fin=r=>{ window.__nube={slug, estado:r, fuente}; refrescarVistasDatos(); if(cb) cb(r); };
+  const fin=r=>{ window.__nube={slug, estado:r, fuente}; refrescarVistasDatos(); if(cb) cb(r); if(fuente==='nube' && (r==='nuevo' || r==='sin-cambios') && store.activeId===id) sincronizarPerfilTrasClave(); };
   const aplicar=payload=>{
     if(store.activeId!==id) return;
     if(!payload || !payload.generatedAt) return fin('no-archivo');
@@ -3058,7 +3091,7 @@ async function comprobarVersion(){
   pintarVersion();
   const ctrl=new AbortController();
   try{
-    const res=await fetch(`https://raw.githubusercontent.com/${r.usuario}/${r.repo}/main/index.html?t=${Date.now()}`,{cache:'no-store', signal:ctrl.signal});
+    const res=await fetch(`${GH_RAW}/${r.usuario}/${r.repo}/main/index.html?t=${Date.now()}`,{cache:'no-store', signal:ctrl.signal});
     const reader=res.body.getReader(), dec=new TextDecoder(); let txt='';
     while(true){ const {done,value}=await reader.read(); if(done) break; txt+=dec.decode(value,{stream:true}); if(/name="app-build" content="[^"]+"/.test(txt) || txt.length>6000) break; }
     ctrl.abort();
@@ -3117,11 +3150,11 @@ function renderNubeCard(){
           1. Abre <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener" style="color:var(--accent);">este enlace</a> (inicia sesión en GitHub si te lo pide).<br>
           2. <b>Token name:</b> run-coach. <b>Expiration:</b> 1 year.<br>
           3. <b>Repository access:</b> "Only select repositories" y elige <b>${escapeHTML(r.repo)}</b>.<br>
-          4. En <b>Permissions › Repository permissions › Actions</b> elige <b>Read and write</b>. No marques nada más.<br>
+          4. En <b>Permissions › Repository permissions</b> elige <b>Read and write</b> en <b>Actions</b> (para "Actualizar ahora") y también en <b>Contents</b> (para guardar tu perfil cifrado en la nube). No marques nada más.<br>
           5. Pulsa <b>Generate token</b>, copia el texto que empieza por <code>github_pat_</code> y pégalo aquí:
           <div class="field" style="margin-top:6px;"><input type="text" id="gh-token-in" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="github_pat_…"></div>
           <div class="btn-row"><button class="btn small" id="gh-token-guardar">Guardar permiso</button></div>
-          <div style="font-size:11px; color:var(--text-dim);">Solo sirve para pedir que se descargue de Garmin; no da acceso a tu cuenta entera ni al contenido del repositorio. Se guarda únicamente en este dispositivo. Si lo pierdes o quieres anularlo, bórralo en GitHub (Settings › Developer settings).</div>
+          <div style="font-size:11px; color:var(--text-dim);">Sirve para pedir que se descargue de Garmin y para guardar tu perfil cifrado en este repositorio; no da acceso a tu cuenta entera ni a otros repositorios. Se guarda únicamente en este dispositivo. Si lo pierdes o quieres anularlo, bórralo en GitHub (Settings › Developer settings).</div>
         </div>`);
   const q=document.getElementById('gh-quitar'); if(q) q.addEventListener('click', e=>{ e.preventDefault(); lsBorrar('runcoach-gh-token'); renderNubeCard(); });
   const sr=document.getElementById('garmin-solo-recargar'); if(sr) sr.addEventListener('click', e=>{ e.preventDefault(); cargarDatosAuto(x=>setActEstado(x==='nuevo'?'✅ Datos nuevos cargados.':'✅ Ya tienes lo último publicado.')); });
@@ -3143,8 +3176,8 @@ async function actualizarAhora(){
   const tok=ghToken();
   if(!tok){ window.__mostrarToken=true; irAPantalla('garmin','ajustes'); renderNubeCard(); setActEstado('ℹ️ Primero hay que dar el permiso a este dispositivo (una sola vez): sigue los pasos de arriba.'); return; }
   __actEnCurso=true;
-  const h={Authorization:'Bearer '+tok, Accept:'application/vnd.github+json', 'X-GitHub-Api-Version':'2022-11-28'};
-  const base=`https://api.github.com/repos/${r.usuario}/${r.repo}/actions/workflows/sync-datos.yml`;
+  const h=ghHeaders(tok);
+  const base=`${GH_API}/repos/${r.usuario}/${r.repo}/actions/workflows/sync-datos.yml`;
   try{
     setActEstado('⏳ Pidiendo a GitHub que descargue de Garmin…');
     const t0=Date.now()-20000;
@@ -4154,22 +4187,182 @@ document.getElementById('perfil-aplicar').addEventListener('click', ()=>{
   }catch(e){ toast('Ese texto no es un perfil válido'); }
 });
 
-/* Copia completa: todo lo que la persona ha anotado en este dispositivo (sin lo que se rehace solo: datos de Garmin y plan) */
-const COPIA_EXCLUIR=['importedActividades','importedSueno','planSemanal','ultimoGenerado','lastImport'];
+/* ================= COPIA COMPLETA, RESTAURAR Y PERFIL EN LA NUBE =================
+   Copia completa = todo lo que la persona ha anotado en este dispositivo (sin lo que se rehace solo: datos de Garmin y plan).
+   Perfil en la nube = esa misma copia, cifrada con la clave de los datos, en data/<persona>.perfil.enc del repositorio:
+   así, con el nombre y la clave, un dispositivo nuevo trae Garmin Y el perfil y no pregunta nada. */
+const COPIA_EXCLUIR=['importedActividades','importedSueno','planSemanal','ultimoGenerado','lastImport','nubePerfil'];
+function estadoParaCopia(){ const o={}; Object.keys(state).forEach(k=>{ if(!COPIA_EXCLUIR.includes(k)) o[k]=state[k]; }); return o; }
 function copiaCompletaTexto(){
-  const o={}; Object.keys(state).forEach(k=>{ if(!COPIA_EXCLUIR.includes(k)) o[k]=state[k]; });
-  return JSON.stringify({runkq_copia:1, creada:TODAY, version:APP_BUILD, nombre:store.personas[store.activeId].nombre, estado:o});
+  return JSON.stringify({runkq_copia:1, creada:TODAY, version:APP_BUILD, nombre:store.personas[store.activeId].nombre, estado:estadoParaCopia()});
 }
-function restaurarCopiaCompleta(texto){
-  const j=JSON.parse(texto);
-  if(!j || j.runkq_copia!==1 || !j.estado || typeof j.estado!=='object') throw new Error('no es una copia de Run Kq');
+// Lo que se pega puede venir de Notas, WhatsApp o un correo: comillas curvas, espacios raros, bloques ```json…
+// Primero se prueba el texto casi tal cual (para no tocar comillas curvas que sean de una nota) y solo si no vale, con las comillas normalizadas.
+function limpiarMinimoCopia(t){ return String(t||'').replace(/[​-‍⁠﻿]/g,'').replace(/ /g,' ').trim(); }
+function normalizarTextoCopia(t){
+  return limpiarMinimoCopia(t).replace(/[“”„‟″]/g,'"').replace(/[‘’‚‛′]/g,"'");
+}
+function interpretarTextoRestauro(texto){
+  const base=limpiarMinimoCopia(texto);
+  if(!base) return {error:'La caja está vacía.'};
+  let ultimoError=null, corteFallido='';
+  for(const variante of [base, normalizarTextoCopia(texto)]){
+    const t=variante.replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+    const a=t.indexOf('{'), b=t.lastIndexOf('}');
+    if(a<0){ ultimoError='No parece una copia de Run Kq: no empieza por "{". Pega el texto tal cual lo copiaste.'; continue; }
+    if(b<a){ ultimoError='Parece que el texto está cortado: empieza bien pero no termina (faltan las llaves del final). Cópialo otra vez entero.'; continue; }
+    const corte=t.slice(a,b+1); let o;
+    try{ o=JSON.parse(corte); }catch(e){ corteFallido=corte; continue; }
+    if(o && o.runkq_copia===1 && o.estado && typeof o.estado==='object') return {tipo:'copia', obj:o};
+    if(o && o.v===1 && o.profile && typeof o.profile==='object') return {tipo:'perfil', obj:o};
+    if(o && o.runkq===1) return {error:'Esto es la respuesta de Claude con un ajuste de entrenamiento, no una copia. Va en "Hablar con Claude" › "Traer la respuesta".'};
+    return {error:'El texto es un JSON válido, pero no es de Run Kq. Debe empezar por {"runkq_copia":1 (copia completa) o {"v":1 (Mostrar mi perfil).'};
+  }
+  if(corteFallido){
+    const abre=(corteFallido.match(/\{/g)||[]).length, cierra=(corteFallido.match(/\}/g)||[]).length;
+    return {error: abre!==cierra
+      ? `Parece que el texto está cortado o incompleto (faltan ${Math.abs(abre-cierra)} llaves). Cópialo otra vez entero, mejor con "Copiar texto" o con el archivo.`
+      : 'El texto tiene un fallo de formato (algún carácter se habrá cambiado al pasar por otra aplicación). Prueba con el archivo en vez de pegarlo.'};
+  }
+  return {error:ultimoError||'No he podido leer ese texto.'};
+}
+function aplicarCopiaEstado(estado){
   const permitidas=new Set(Object.keys(nuevoEstado())); let n=0;
-  Object.keys(j.estado).forEach(k=>{ if(permitidas.has(k) && !COPIA_EXCLUIR.includes(k) && k!=='__proto__'){ state[k]=j.estado[k]; n++; } });
+  Object.keys(estado).forEach(k=>{ if(permitidas.has(k) && !COPIA_EXCLUIR.includes(k)){ state[k]=estado[k]; n++; } });
   state=hidratarEstado(state); store.personas[store.activeId].state=state;
-  if(j.nombre && /^[\wÀ-ÿ .'-]{1,40}$/.test(j.nombre)) store.personas[store.activeId].nombre=j.nombre;
   state.planSemanal={}; window.__planesTmp={};
+  return n;
+}
+function finalizarRestauro(){
+  if(state.profile.onboardingCompletado) hideOnboarding();
+  document.getElementById('persona-modal').style.display='none';
   saveState(); if(state.profile.onboardingCompletado) recalcularPlan();
-  renderAll(); updateCharts(); return {n, creada:j.creada, version:j.version};
+  renderAll(); updateCharts();
+}
+function restaurarCopiaCompleta(texto){ // -> {n, tipo, creada, version}; lanza Error con el motivo si no se puede
+  const r=interpretarTextoRestauro(texto);
+  if(r.error) throw new Error(r.error);
+  let n;
+  if(r.tipo==='copia') n=aplicarCopiaEstado(r.obj.estado);
+  else {
+    aplicarPerfilExterno(r.obj); n=1;
+    // con un perfil nuevo y datos de Garmin ya importados, se valora la fase con el historial real
+    if(state.importedActividades.length){ for(let i=0;i<4;i++){ const antes=state.fase.actual; determinarFase(); if(state.fase.actual===antes) break; } }
+  }
+  finalizarRestauro();
+  return {n, tipo:r.tipo, creada:r.obj.creada, version:r.obj.version};
+}
+/* ---- Ventana "Ya tengo una copia" (alta inicial y cuadro de nombre) ---- */
+function abrirRestaurar(){ document.getElementById('restaurar-aviso').innerHTML=''; document.getElementById('restaurar-texto').value=''; document.getElementById('restaurar-modal').style.display='block'; }
+function restaurarDesdeModal(texto){
+  const av=document.getElementById('restaurar-aviso');
+  const r=interpretarTextoRestauro(texto);
+  if(r.error){ av.innerHTML=`<div class="alert high"><div class="icon">⛔</div><div class="txt"><strong>No he podido restaurar</strong><span>${escapeHTML(r.error)}</span></div></div>`; return; }
+  try{
+    if(!store.activeId || !store.personas[store.activeId]){ // todavía no hay persona: se crea con el nombre de la copia o el escrito
+      const nom=String(r.obj.nombre||'').trim() || (document.getElementById('persona-nuevo-nombre').value||'').trim() || 'Kique';
+      activarPersona(crearPersona(nom));
+    }
+    const x=restaurarCopiaCompleta(texto);
+    document.getElementById('restaurar-modal').style.display='none';
+    toast(x.tipo==='copia' ? 'Copia restaurada' : 'Perfil cargado (las notas y la molestia solo viajan en la copia completa)');
+  }catch(e){ av.innerHTML=`<div class="alert high"><div class="icon">⛔</div><div class="txt"><strong>No he podido restaurar</strong><span>${escapeHTML(e.message||'error')}</span></div></div>`; }
+}
+document.getElementById('ob-restaurar').addEventListener('click', abrirRestaurar);
+document.getElementById('persona-restaurar').addEventListener('click', abrirRestaurar);
+document.getElementById('restaurar-cerrar').addEventListener('click', ()=>{ document.getElementById('restaurar-modal').style.display='none'; });
+document.getElementById('restaurar-aplicar').addEventListener('click', ()=>restaurarDesdeModal(document.getElementById('restaurar-texto').value));
+document.getElementById('restaurar-archivo').addEventListener('change', e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>restaurarDesdeModal(String(rd.result||'')); rd.readAsText(f); e.target.value=''; });
+
+/* ---- Perfil en la nube: leer, traer y subir (cifrado en el navegador con la clave de los datos) ---- */
+function idDispositivo(){ let d=lsLeer('runcoach-dispositivo'); if(!d){ d='d'+Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4); lsEscribir('runcoach-dispositivo', d); } return d; }
+async function huellaTexto(txt){ const h=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt)); return [...new Uint8Array(h)].slice(0,12).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+const rutaPerfilNube=slug=>`data/${slug}.perfil.enc`;
+const fechaCorta=iso=>{ try{ return new Date(iso).toLocaleString('es-ES',{day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); }catch(e){ return iso; } };
+async function leerPerfilNube(){ // -> {estado:'ok', obj} | 'sin-archivo' | 'necesita-clave' | 'clave-incorrecta' | 'invalido'
+  const slug=slugPersona(), r=repoGitHub(), urls=[];
+  if(r) urls.push(`${GH_RAW}/${r.usuario}/${r.repo}/main/${rutaPerfilNube(slug)}`);
+  urls.push(rutaPerfilNube(slug));
+  let texto=null;
+  for(const u of urls){
+    try{ const x=await fetch(u+(u.includes('?')?'&':'?')+'ts='+Date.now(), {cache:'no-store'}); if(!x.ok) continue; const t=await x.text(); const o=JSON.parse(t); if(o && o.salt && o.ct){ texto=t; break; } }catch(e){ /* sin archivo o sin red */ }
+  }
+  if(texto===null) return {estado:'sin-archivo'};
+  const clave=lsLeer('runcoach-clave-'+slug); if(!clave) return {estado:'necesita-clave'};
+  try{
+    const obj=JSON.parse(await descifrarArchivo(texto, clave));
+    return (obj && obj.runkq_perfil===1 && obj.estado) ? {estado:'ok', obj} : {estado:'invalido'};
+  }catch(e){ return {estado:'clave-incorrecta'}; }
+}
+async function traerPerfilNube(){
+  const x=await leerPerfilNube(); if(x.estado!=='ok') return {ok:false, estado:x.estado};
+  aplicarCopiaEstado(x.obj.estado); finalizarRestauro();
+  state.nubePerfil={hash:await huellaTexto(JSON.stringify(estadoParaCopia())), savedAtNube:x.obj.savedAt, ultimaSubida:x.obj.savedAt, dispositivo:x.obj.dispositivo};
+  window.__perfilNubeMasNuevo=null; window.__subiendoPerfil=true; saveState(); window.__subiendoPerfil=false;
+  return {ok:true, savedAt:x.obj.savedAt};
+}
+async function subirPerfilNube(forzar){ // -> {ok, msg, sinCambios?, permiso?}
+  const r=repoGitHub(), tok=ghToken(), slug=slugPersona(), clave=lsLeer('runcoach-clave-'+slug);
+  if(!r) return {ok:false, msg:'Solo se puede guardar desde la web publicada en GitHub Pages.'};
+  if(!clave) return {ok:false, msg:'Falta la clave de tus datos (se pide al abrir la app).'};
+  if(!tok) return {ok:false, msg:'Falta el permiso de GitHub de este dispositivo.', permiso:true};
+  if(!state.profile.onboardingCompletado) return {ok:false, msg:'Primero completa el alta o restaura una copia.'};
+  const estado=estadoParaCopia(), hash=await huellaTexto(JSON.stringify(estado)), np=state.nubePerfil||{};
+  if(!forzar && np.hash===hash) return {ok:true, sinCambios:true, msg:'Sin cambios desde la última vez.'};
+  const savedAt=new Date().toISOString();
+  const cuerpo=await cifrarArchivo(JSON.stringify({runkq_perfil:1, savedAt, dispositivo:idDispositivo(), nombre:store.personas[store.activeId].nombre, version:APP_BUILD, estado}), clave);
+  const url=`${GH_API}/repos/${r.usuario}/${r.repo}/contents/${rutaPerfilNube(slug)}`, h=ghHeaders(tok);
+  for(let intento=0; intento<2; intento++){
+    let sha;
+    try{ const g=await fetch(url+'?ref=main&t='+Date.now(), {headers:h, cache:'no-store'});
+      if(g.ok) sha=(await g.json()).sha;
+      else if(g.status===401 || g.status===403) return {ok:false, permiso:true, msg:'GitHub no ha aceptado el permiso de este dispositivo: debe incluir "Contents: Read and write" en este repositorio.'};
+    }catch(e){ return {ok:false, msg:'Sin conexión con GitHub.'}; }
+    let put;
+    try{ put=await fetch(url, {method:'PUT', headers:Object.assign({'Content-Type':'application/json'}, h), body:JSON.stringify(Object.assign({message:'Perfil actualizado', content:btoa(cuerpo), branch:'main'}, sha?{sha}:{}))}); }
+    catch(e){ return {ok:false, msg:'Sin conexión con GitHub.'}; }
+    if(put.ok){ state.nubePerfil={hash, savedAtNube:savedAt, ultimaSubida:savedAt, dispositivo:idDispositivo()}; window.__subiendoPerfil=true; saveState(); window.__subiendoPerfil=false; return {ok:true, msg:'Guardado en la nube.'}; }
+    if(put.status===401 || put.status===403 || put.status===404) return {ok:false, permiso:true, msg:`GitHub no ha dejado guardar (${put.status}): el permiso del dispositivo debe incluir "Contents: Read and write" sobre este repositorio.`};
+    if(put.status!==409 && put.status!==422) return {ok:false, msg:`GitHub respondió con un error (${put.status}).`};
+  }
+  return {ok:false, msg:'GitHub estaba ocupado: inténtalo de nuevo en un momento.'};
+}
+let __timerPerfil=null;
+function programarSubidaPerfil(ahora){
+  if(window.__subiendoPerfil) return;
+  if(!repoGitHub() || !ghToken() || !state.profile.onboardingCompletado || !lsLeer('runcoach-clave-'+slugPersona())) return;
+  if(window.__perfilNubeMasNuevo) return; // nunca se pisa en silencio una copia más reciente de otro dispositivo
+  clearTimeout(__timerPerfil);
+  __timerPerfil=setTimeout(async ()=>{
+    const np=state.nubePerfil||{};
+    if(!ahora && np.ultimaSubida && Date.now()-Date.parse(np.ultimaSubida)<30*60*1000) return; // como mucho una vez cada 30 min
+    const r=await subirPerfilNube(false); window.__nubePerfilUltimo=r; renderNubePerfil();
+  }, ahora?1500:90000);
+}
+async function sincronizarPerfilTrasClave(){ // se llama cuando la clave ya ha abierto los datos de Garmin
+  if(window.__sincPerfilHecha===store.activeId) return; window.__sincPerfilHecha=store.activeId;
+  const x=await leerPerfilNube(), np=state.nubePerfil||{};
+  if(x.estado==='ok'){
+    const o=x.obj;
+    if(!state.profile.onboardingCompletado){
+      const t=await traerPerfilNube();
+      if(t.ok){ toast('Tu perfil ha llegado de la nube: no hace falta el cuestionario'); return; }
+    } else if(o.savedAt>(np.savedAtNube||'') && o.dispositivo!==idDispositivo()){
+      window.__perfilNubeMasNuevo=o; renderNubePerfil(); toast('Hay una copia más reciente en la nube (de otro dispositivo): Yo › Copia completa'); return;
+    }
+  }
+  if(state.profile.onboardingCompletado) programarSubidaPerfil(true);
+}
+function renderNubePerfil(){
+  const e=document.getElementById('nubeperfil-estado'); if(!e) return;
+  const np=state.nubePerfil||{}, u=window.__nubePerfilUltimo; let t='';
+  if(!repoGitHub()) t='Solo disponible en la web publicada en GitHub Pages.';
+  else if(!lsLeer('runcoach-clave-'+slugPersona())) t='Falta la clave de tus datos: se pide al abrir la app con datos en la nube.';
+  else if(!ghToken()) t='<b style="color:var(--amber)">Sin permiso de GitHub en este dispositivo.</b> Configúralo en Yo › Garmin › "Actualizar ahora" (el permiso debe incluir <i>Contents: Read and write</i>).';
+  else t = np.ultimaSubida ? `Guardada en la nube el <b>${fechaCorta(np.ultimaSubida)}</b> ✓` : 'Todavía no se ha guardado en la nube.';
+  if(window.__perfilNubeMasNuevo) t+=`<br><b style="color:var(--amber)">Hay una copia más reciente en la nube</b> (del ${fechaCorta(window.__perfilNubeMasNuevo.savedAt)}, de otro dispositivo). Pulsa "Traer de la nube" para usarla.`;
+  if(u && !u.ok) t+=`<br><span style="color:var(--red)">${escapeHTML(u.msg)}</span>`;
+  e.innerHTML=t;
 }
 (function(){
   const aviso=t=>{ const e=document.getElementById('copia-aviso'); if(e) e.textContent=t; };
@@ -4183,9 +4376,18 @@ function restaurarCopiaCompleta(texto){
     a.href=URL.createObjectURL(new Blob([t],{type:'application/json'})); a.download=`run-kq-copia-${TODAY}.json`; document.body.appendChild(a); a.click(); a.remove();
     aviso('Archivo guardado (mira en Descargas). Guárdalo en un sitio seguro: lleva datos de salud y sin cifrar.');
   });
-  const restaurar=txt=>{ try{ const r=restaurarCopiaCompleta(txt); document.getElementById('copia-pegar').value=''; aviso(`Copia restaurada (${r.n} apartados, del ${r.creada||'?'}, versión ${r.version||'?'}).`); toast('Copia restaurada'); }catch(e){ aviso('Ese texto o archivo no es una copia válida de Run Kq.'); toast('No es una copia válida', true); } };
+  const restaurar=txt=>{ try{ const r=restaurarCopiaCompleta(txt); document.getElementById('copia-pegar').value=''; aviso(r.tipo==='copia' ? `Copia restaurada (${r.n} apartados, del ${r.creada||'?'}, versión ${r.version||'?'}).` : 'Perfil cargado. Eso solo trae perfil, eventos y menú; las notas y la molestia viajan en la copia completa.'); toast('Restaurado'); }catch(e){ aviso(e.message||'Ese texto o archivo no es una copia válida de Run Kq.'); toast('No se ha podido restaurar', true); } };
   document.getElementById('copia-restaurar').addEventListener('click', ()=>restaurar(document.getElementById('copia-pegar').value));
   document.getElementById('copia-archivo').addEventListener('change', e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>restaurar(String(r.result||'')); r.readAsText(f); e.target.value=''; });
+  document.getElementById('nubeperfil-guardar').addEventListener('click', async ()=>{
+    if(window.__perfilNubeMasNuevo && !confirm('Hay una copia más reciente en la nube, de otro dispositivo. Si guardas esta, la sustituyes. ¿Seguro?')) return;
+    window.__perfilNubeMasNuevo=null; window.__nubePerfilUltimo={ok:true, msg:'Guardando…'}; renderNubePerfil();
+    const r=await subirPerfilNube(true); window.__nubePerfilUltimo=r; renderNubePerfil(); toast(r.ok?'Guardado en la nube':r.msg, !r.ok);
+  });
+  document.getElementById('nubeperfil-traer').addEventListener('click', async ()=>{
+    const r=await traerPerfilNube(); renderNubePerfil();
+    toast(r.ok ? 'Perfil traído de la nube' : ({'sin-archivo':'Todavía no hay copia en la nube','necesita-clave':'Falta la clave de tus datos','clave-incorrecta':'La clave no abre esa copia','invalido':'La copia de la nube no es válida'}[r.estado]||'No se ha podido traer'), !r.ok);
+  });
 })();
 
 /* ================= CARGA REAL, ENTRENO DEL DÍA Y DETALLE ================= */
@@ -5373,6 +5575,7 @@ function renderAll(){
   renderWhy();
   renderAprendido();
   renderTendencias();
+  renderNubePerfil();
   renderAnalisisHoy();
   renderCadencia();
   renderCalendario();

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="app-build" content="11.1 · 2026-11-11">
+<meta name="app-build" content="11.2 · 2026-11-15">
 <meta name="theme-color" content="#0F1424">
 <meta name="application-name" content="Run Kq">
 <meta name="apple-mobile-web-app-title" content="Run Kq">
@@ -205,7 +205,7 @@
   .coach-plan{ background:linear-gradient(145deg, rgba(255,138,76,.16), rgba(255,138,76,0) 55%), var(--surface); border-color:rgba(255,138,76,.22); }
   .hero-t{ font-family:'Space Grotesk'; font-size:22px; font-weight:700; letter-spacing:-.02em; line-height:1.15; }
   .hero-s{ font-size:12px; color:var(--text-dim); margin-top:4px; }
-  .hero-chips{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:14px 0 6px; }
+  .hero-chips{ display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.5fr) minmax(0,.8fr); gap:8px; margin:14px 0 6px; }
   .hero-chip{ background:rgba(255,255,255,.05); border-radius:14px; padding:10px 6px; text-align:center; min-width:0; }
   .hero-chip b{ display:block; font-family:'Space Grotesk'; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .hero-chip span{ font-size:10px; color:var(--text-dim); }
@@ -272,7 +272,7 @@
   .card h3 .muted{ text-transform:none; letter-spacing:0; }
   .hero-t{ font-size:26px; background:linear-gradient(100deg, #fff 40%, #FFC59E); -webkit-background-clip:text; background-clip:text; color:transparent; }
   .hero-chip{ background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.06); }
-  .hero-chip b{ font-family:'JetBrains Mono'; font-size:15px; }
+  .hero-chip b{ font-family:'JetBrains Mono'; font-size:14px; letter-spacing:-.03em; overflow:visible; text-overflow:clip; }
   .row .value, .tnd .v, .num{ font-variant-numeric:tabular-nums; }
   .btn{ transition:transform .12s ease, box-shadow .18s ease, background .18s; }
   .btn:active{ transform:scale(.97); }
@@ -371,7 +371,8 @@
       </div>
 
 <div class="card" id="analisis-card" style="display:none;"><h3 id="analisis-titulo">Tu última sesión</h3><div id="analisis-body"></div></div>
-<div class="card" id="sem-nutri-card"><h3>Nutrición de hoy</h3><div id="sem-nutri-body"></div></div>
+<details class="card plegable" id="sem-nutri-card"><summary>Nutrición de hoy</summary><div id="sem-nutri-body" style="margin-top:8px;"></div></details>
+<div id="sem-manual-hoy"></div>
 </div>
       <div id="sem-perdidas"></div>
 
@@ -390,26 +391,13 @@
 
       <button class="btn ghost" id="abrir-claude" style="width:100%; margin:4px 0 12px; display:flex; align-items:center; justify-content:center; gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 01-11.6 7.1L3 21l1.9-5.4A8 8 0 1121 12z"/></svg>Hablar con Claude sobre mi entrenamiento</button>
 
-      <div class="sem-sep">Objetivo, carreras y plan</div>
-
-      <div class="card">
-        <h3>Objetivo semanal</h3>
-        <div class="row"><span class="label">Sesiones de running</span><span class="value" id="obj-running">0 / 2</span></div>
-        <div class="progress-bar"><div class="fill" id="obj-running-bar" style="width:0%"></div></div>
-        <div class="row"><span class="label">Clases de funcional</span><span class="value" id="obj-funcional">0 / 2</span></div>
-        <div class="row"><span class="label">Estiramientos</span><span class="value" id="obj-estiramientos">0 / 0</span></div>
-      </div>
+      <div class="sem-sep">Carreras y salidas</div>
 
       <div class="card">
         <h3>Próximas carreras y salidas</h3>
         <div id="eventos-lista"></div>
       </div>
 
-      
-      <div class="card">
-        <h3 id="plan-resumen-titulo">Tu plan</h3>
-        <div id="plan-resumen" style="font-size:12.5px; line-height:1.55; color:var(--text-dim);"></div>
-      </div>
       <div class="footnote">Es una previsión orientativa: se recalcula sola cuando cambian tus datos, tus check-ins o tus carreras.</div>
     <details class="card plegable" id="det-evento">
         <summary>＋ Añadir una carrera o salida</summary>
@@ -428,26 +416,6 @@
         <button class="btn" id="ev-guardar" style="width:100%;">Añadir evento</button>
       </details>
 
-      <details class="card plegable" id="det-manual">
-        <summary>＋ Registrar una sesión a mano</summary>
-        <div style="font-size:11.5px; color:var(--text-dim); margin:8px 0;">Solo si algo no llega desde Garmin. El dato importado siempre sustituye al manual de la misma fecha.</div>
-        <div class="field">
-          <label>Tipo</label>
-          <select id="ms-tipo"><option value="Carrera">Running</option><option value="Fuerza">Clase de funcional</option><option value="Estiramientos">Estiramientos</option></select>
-        </div>
-        <div class="field"><label>Fecha</label><input type="date" id="ms-fecha"></div>
-        <div class="field" id="ms-dist-wrap"><label>Distancia (km)</label><input type="number" id="ms-dist" step="0.01" placeholder="ej. 4.5"></div>
-        <div class="field"><label>Duración (mm:ss o hh:mm:ss)</label><input type="text" id="ms-dur" placeholder="ej. 28:30"></div>
-        <div class="field">
-          <label>Sensación</label>
-          <div class="btn-row">
-            <button class="btn small" data-rpe="suave">Suave</button>
-            <button class="btn small" data-rpe="normal">Normal</button>
-            <button class="btn small" data-rpe="duro">Duro</button>
-          </div>
-        </div>
-        <button class="btn" id="save-manual-session" style="width:100%;">Registrar sesión</button>
-      </details>
     </section>
 
     <!-- ============ CLAUDE: diario con efectos (Futuro · Realizado · Análisis) ============ -->
@@ -1018,7 +986,6 @@ function hoyLocalISO(){
 const TODAY = hoyLocalISO();
 document.getElementById('today-label').textContent = fmtShort(TODAY)+' '+TODAY.slice(0,4);
 document.getElementById('today-dow').textContent = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][new Date(TODAY+"T00:00:00Z").getUTCDay()];
-document.getElementById('ms-fecha').value = TODAY;
 
 /* ================= DATOS SEMILLA REALES ================= */
 const SEED_CARRERAS = [
@@ -1083,6 +1050,8 @@ function nuevoEstado(){
     reprogramaciones: {},  // sesiones no hechas movidas a otro día de la semana: {destino:{origen, sesion, creado}}
     perdidasDescartadas: {}, // sesiones no hechas que se decidió dejar: {fecha:true}
     molestiaDias: {},      // una entrada por día: {zona, lado, tipo, nivel 0-5, tendencia, agrava[], nota, tratamiento}
+    motivoNoHechoTexto: {}, // fecha -> texto libre cuando el motivo es 'otros'
+    claudeEnlace: '',      // enlace a una conversación o proyecto de Claude ya abierto (opcional)
     motivoNoHecho: {},     // fecha -> 'molestia' | 'tiempo' | 'cansancio' | 'prefiero no arriesgar'
     ajustesClaude: {},     // fecha -> {accion, km, motivo, creado}: ajuste al plan acordado tras consultar a Claude (solo más conservador)
     consultasClaude: [],   // últimas consultas: {fecha, pregunta, accion, fechaAjuste, motivo, aplicada}
@@ -2441,8 +2410,49 @@ function eventoCercano(fecha, ventana){
 }
 
 /* ================= MOLESTIA: QUÉ HA PASADO, POR QUÉ HOY SÍ/NO Y QUÉ HACER ================= */
-const MOTIVOS_NO_HECHO=['molestia','miedo a empeorarla','tiempo','cansancio','prefiero no arriesgar'];
+const MOTIVOS_NO_HECHO=['molestia','miedo a empeorarla','tiempo','cansancio','prefiero no arriesgar','otros'];
 const DIA_LETRA=['D','L','M','X','J','V','S'];
+const ETIQ_MOTIVO={tiempo:'Falta de tiempo', cansancio:'Cansancio', otros:'Otros'};
+function motivoNoHechoTxt(f){ const m=state.motivoNoHecho[f]; if(!m) return ''; return m==='otros' ? ('otros'+((state.motivoNoHechoTexto||{})[f]?': '+state.motivoNoHechoTexto[f]:'')) : m; }
+// Dentro de la tarjeta de un día: por qué no se hizo y, si quieres, apuntar una sesión a mano
+function semNoHechoHTML(f){
+  const m=state.motivoNoHecho[f]||'', txt=(state.motivoNoHechoTexto||{})[f]||'';
+  return `<div style="margin-top:10px; font-size:11.5px; color:var(--text-dim);">¿Por qué no se hizo? (opcional)</div>
+    <div class="seg" style="margin-top:4px;">${['tiempo','cansancio','otros'].map(k=>`<button type="button" class="mnh-set${m===k?' selected':''}" data-f="${f}" data-k="${k}">${ETIQ_MOTIVO[k]}</button>`).join('')}</div>
+    ${m==='otros'?`<div class="field" style="margin:6px 0 0;"><input type="text" class="mnh-txt" data-f="${f}" placeholder="Cuéntalo con tus palabras" value="${escapeHTML(txt)}"></div>`:''}`;
+}
+window.__smAbierto = window.__smAbierto || {};
+function semManualHTML(f){
+  if(!window.__smAbierto[f]) return `<div class="btn-row" style="margin-top:8px;"><button type="button" class="btn ghost small sm-abrir" data-f="${f}">＋ Registrar una sesión a mano</button></div>`;
+  return `<div class="molestia-extra sm-form" data-f="${f}" style="margin-top:8px;">
+      <div style="font-size:11.5px; color:var(--text-dim); margin-bottom:6px;">Solo si algo no llega desde Garmin. El dato importado siempre sustituye al manual del mismo día.</div>
+      <div class="field"><label>Tipo</label><select class="sm-tipo"><option value="Carrera">Running</option><option value="Fuerza">Clase de funcional</option><option value="Estiramientos">Estiramientos</option></select></div>
+      <div class="field"><label>Día</label><input type="date" class="sm-fecha" max="${TODAY}" value="${f>TODAY?TODAY:f}"></div>
+      <div class="field sm-dist-wrap"><label>Distancia (km)</label><input type="number" class="sm-dist" step="0.01" placeholder="ej. 4.5"></div>
+      <div class="field"><label>Duración (mm:ss o hh:mm:ss)</label><input type="text" class="sm-dur" placeholder="ej. 28:30"></div>
+      <div class="field"><label>Sensación</label><div class="seg">${['suave','normal','duro'].map(v=>`<button type="button" class="sm-rpe" data-v="${v}">${v[0].toUpperCase()+v.slice(1)}</button>`).join('')}</div></div>
+      <div class="btn-row"><button type="button" class="btn sm-guardar" style="flex:1;">Registrar sesión</button><button type="button" class="btn ghost sm-cerrar" data-f="${f}" style="flex:1;">Cancelar</button></div></div>`;
+}
+document.addEventListener('click', e=>{
+  const ab=e.target.closest('.sm-abrir'); if(ab){ window.__smAbierto[ab.dataset.f]=true; renderSemana(); return; }
+  const ce=e.target.closest('.sm-cerrar'); if(ce){ delete window.__smAbierto[ce.dataset.f]; renderSemana(); return; }
+  const rp=e.target.closest('.sm-form .sm-rpe'); if(rp){ rp.parentElement.querySelectorAll('.sm-rpe').forEach(x=>x.classList.toggle('selected', x===rp)); return; }
+  const gu=e.target.closest('.sm-guardar');
+  if(gu){
+    const fm=gu.closest('.sm-form'), q=s=>fm.querySelector(s), tipo=q('.sm-tipo').value, fecha=q('.sm-fecha').value||fm.dataset.f;
+    const dist=parseFloat(q('.sm-dist').value)||0, dur=q('.sm-dur').value||'', rpeB=fm.querySelector('.sm-rpe.selected');
+    if(fecha>TODAY){ toast('Elige un día que no sea futuro', true); return; }
+    if(tipo==='Carrera' && !dist && !dur){ toast('Pon al menos la distancia o la duración', true); return; }
+    delete window.__smAbierto[fm.dataset.f];
+    guardarSesionManual({tipo, fecha, dist, dur, rpe:rpeB?rpeB.dataset.v:null}); toast('Sesión registrada (manual)'); return;
+  }
+  const ms=e.target.closest('.mnh-set');
+  if(ms){ const f=ms.dataset.f; state.motivoNoHecho[f] = state.motivoNoHecho[f]===ms.dataset.k ? undefined : ms.dataset.k; if(!state.motivoNoHecho[f]) delete state.motivoNoHecho[f]; saveState(); renderSemana(); return; }
+});
+document.addEventListener('change', e=>{
+  if(e.target.classList && e.target.classList.contains('sm-tipo')){ const w=e.target.closest('.sm-form').querySelector('.sm-dist-wrap'); if(w) w.style.display = e.target.value==='Carrera' ? '' : 'none'; return; }
+  if(e.target.classList && e.target.classList.contains('mnh-txt')){ state.motivoNoHechoTexto=state.motivoNoHechoTexto||{}; const v=e.target.value.trim(); if(v) state.motivoNoHechoTexto[e.target.dataset.f]=v; else delete state.motivoNoHechoTexto[e.target.dataset.f]; saveState(); }
+});
 // Sesiones previstas (correr o clase) de los días del episodio que no se hicieron, con su motivo
 function sesionesNoHechas(ep){
   const out=[];
@@ -2450,7 +2460,7 @@ function sesionesNoHechas(ep){
     if(d.fecha>=TODAY) return;
     const dia=diaDePlan(d.fecha); if(!dia || !['Carrera','Fuerza'].includes(dia.tipo)) return;
     if(actividadesDelDia(d.fecha).some(a=>['Carrera','Fuerza'].includes(a.tipo))) return;
-    out.push({fecha:d.fecha, dia, motivo:state.motivoNoHecho[d.fecha]||'molestia'});
+    out.push({fecha:d.fecha, dia, motivo:motivoNoHechoTxt(d.fecha)||'molestia'});
   });
   return out;
 }
@@ -2739,7 +2749,11 @@ function renderModalClaude(){
       <div style="font-size:12px; color:var(--text-dim); margin-bottom:4px;">Qué le cuento (lo ves antes de enviarlo):</div>
       ${ck('cl-plan','Mi plan de estos días',true)}${ck('cl-ses','Mis últimas sesiones y su análisis',true)}${ck('cl-mol','Mi molestia'+(dm?'':' (ahora no hay ninguna)'),!!dm)}${ck('cl-not','Mis notas',true)}${ck('cl-rec','Mi recuperación estimada',true)}${ck('cl-dia','Mi diario y mis molestias anteriores',true)}
       <details class="plegable" style="margin-top:8px;"><summary style="font-size:12px; color:var(--text-dim);">Ver el texto que se enviará</summary><pre id="cl-previa" style="white-space:pre-wrap; font-size:11px; line-height:1.5; background:var(--surface-2); border-radius:12px; padding:10px; margin-top:6px; max-height:260px; overflow:auto;"></pre></details>
-      <div class="btn-row"><button class="btn" id="cl-copiar" style="flex:1;">Copiar y abrir Claude</button></div>
+      <div class="btn-row"><button class="btn" id="cl-copiar" style="flex:1;">${state.claudeEnlace?'Copiar y abrir mi conversación':'Copiar y abrir Claude'}</button></div>
+      <details class="plegable" style="margin-top:8px;" ${state.claudeEnlace?'open':''}><summary style="font-size:12px; color:var(--text-dim);">Seguir en una conversación que ya tengo</summary>
+        <div style="font-size:11.5px; color:var(--text-dim); line-height:1.5; margin:6px 0;">Abre tu conversación (o tu proyecto "Entrenador Garmin") en claude.ai, copia la dirección de la barra del navegador y pégala aquí. La próxima vez se abrirá esa en vez de una nueva y verás todo lo hablado antes. Ojo: un enlace a una conversación no admite texto puesto de antemano, así que la app lo copia y tú lo pegas.</div>
+        <div class="field"><input type="url" id="cl-enlace-url" placeholder="https://claude.ai/chat/…" value="${escapeHTML(state.claudeEnlace||'')}"></div>
+        <div class="btn-row"><button class="btn small" id="cl-enlace-guardar">Guardar enlace</button>${state.claudeEnlace?'<button class="btn ghost small" id="cl-enlace-quitar">Quitar</button>':''}</div></details>
       <div style="font-size:11px; color:var(--text-dim); margin-top:6px; line-height:1.5;">Se copia el texto y se abre Claude: pégalo en una conversación (mejor dentro de tu proyecto "Entrenador Garmin"). No viaja ninguna clave ni dato de acceso, solo lo que ves arriba.</div>
       <div class="btn-row"><button class="btn ghost small" id="cl-enlace">Intentar abrir con el texto ya puesto</button></div></div>
     <div class="card"><h3>2 · Traer la respuesta de Claude</h3>
@@ -2768,8 +2782,14 @@ document.addEventListener('click', async e=>{
     if(q.value.trim() && window.__ultimaFutura!==q.value.trim()){ window.__ultimaFutura=q.value.trim(); diarioAnadir({fecha:TODAY, tipo:'futuro', texto:q.value, extra:{tema:['sesión']}, efecto:['Enviado a Claude con tu plan y tu historial.']}); saveState(); }
     try{ await navigator.clipboard.writeText(t); toast('Copiado: pégalo en Claude'); }
     catch(err){ const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); toast('Copiado: pégalo en Claude'); }catch(_){ toast('No he podido copiar: usa "Ver el texto que se enviará"', true); } ta.remove(); }
-    window.open('https://claude.ai/new','_blank','noopener'); return;
+    window.open(state.claudeEnlace || 'https://claude.ai/new','_blank','noopener'); return;
   }
+  if(e.target.closest('#cl-enlace-guardar')){
+    const v=(document.getElementById('cl-enlace-url').value||'').trim();
+    if(!/^https:\/\/claude\.ai\/(chat|project|projects)\/[\w-]+/.test(v)){ toast('Pega la dirección completa de una conversación o proyecto de claude.ai', true); return; }
+    state.claudeEnlace=v; saveState(); renderModalClaude(); toast('Enlace guardado: se abrirá tu conversación'); return;
+  }
+  if(e.target.closest('#cl-enlace-quitar')){ state.claudeEnlace=''; saveState(); renderModalClaude(); toast('Enlace quitado: se abrirá una conversación nueva'); return; }
   if(e.target.closest('#cl-enlace')){
     const t=textoContextoClaude(opcionesClaude(), q.value);
     if(t.length>6000){ toast('Es largo para un enlace: usa "Copiar y abrir Claude"', true); return; }
@@ -3068,6 +3088,7 @@ function renderManana(){
 }
 
 /* ================= RENDER: ENTRENAMIENTOS ================= */
+const $ausente=id=>document.getElementById(id)||{style:{}, set textContent(v){}, set innerHTML(v){}}; // elementos que ya no están en pantalla
 function renderEntrenamientos(){
   const acts=todasActividades();
   const semanaActualCodigo=isoWeek(TODAY);
@@ -3077,10 +3098,10 @@ function renderEntrenamientos(){
   const objRunning = plan ? Object.values(plan.dias).filter(esRun).length : 2;
   const objFuerza = plan ? Object.values(plan.dias).filter(d=>d.tipo==='Fuerza').length : 2;
   const objEstir = plan ? Object.values(plan.dias).filter(d=>d.tipo==='Estiramientos').length : 0;
-  document.getElementById('obj-running').textContent = `${enSemana.filter(a=>a.tipo==='Carrera').length} / ${objRunning}`;
-  document.getElementById('obj-running-bar').style.width = Math.min(100, enSemana.filter(a=>a.tipo==='Carrera').length/Math.max(1,objRunning)*100)+'%';
-  document.getElementById('obj-funcional').textContent = `${enSemana.filter(a=>a.tipo==='Fuerza').length} / ${objFuerza}`;
-  document.getElementById('obj-estiramientos').textContent = `${enSemana.filter(a=>a.tipo==='Estiramientos').length} / ${objEstir}`;
+  $ausente('obj-running').textContent = `${enSemana.filter(a=>a.tipo==='Carrera').length} / ${objRunning}`;
+  $ausente('obj-running-bar').style.width = Math.min(100, enSemana.filter(a=>a.tipo==='Carrera').length/Math.max(1,objRunning)*100)+'%';
+  $ausente('obj-funcional').textContent = `${enSemana.filter(a=>a.tipo==='Fuerza').length} / ${objFuerza}`;
+  $ausente('obj-estiramientos').textContent = `${enSemana.filter(a=>a.tipo==='Estiramientos').length} / ${objEstir}`;
 
   const dias=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
   const base=new Date(TODAY+"T00:00:00Z");
@@ -3127,7 +3148,7 @@ function renderEntrenamientos(){
   document.getElementById('fase-actual-texto').innerHTML = `Fase actual: <b style="color:var(--text)">${FASE_LABELS[state.fase.actual]||state.fase.actual}</b>`;
   document.getElementById('fase-motivo-texto').textContent = ultimoMotivo;
 
-  const ajustes = plan ? plan.ajustes : [];
+  const ajustes = plan ? plan.ajustes.filter(a=>a.fecha>=TODAY) : []; // los de días ya pasados no se enseñan
   document.getElementById('plan-ajustes').innerHTML = ajustes.length ? ajustes.map(a=>`<div class="alert low"><div class="icon">${a.origen==='evento'?'🏁':'⚠️'}</div><div class="txt"><strong>${a.origen==='evento'?'Ajuste por tu carrera/salida':'Aviso'} — ${fmtShort(a.fecha)}</strong><span>${a.motivo}</span></div></div>`).join('') : '';
   renderEventosLista();
 }
@@ -4062,26 +4083,13 @@ function interpretarGraficas(carreras, agg, roll, objetivo, carrerasG){
   } else setInterp(5, sinDatos);
 }
 
-/* ================= FORMULARIO: SESIÓN RÁPIDA ================= */
-let rpeSeleccionado=null;
-document.querySelectorAll('[data-rpe]').forEach(b=>b.addEventListener('click',()=>{
-  document.querySelectorAll('[data-rpe]').forEach(x=>x.classList.remove('selected'));
-  b.classList.add('selected'); rpeSeleccionado=b.dataset.rpe;
-}));
-document.getElementById('ms-tipo').addEventListener('change', e=>{
-  document.getElementById('ms-dist-wrap').style.display = e.target.value==='Carrera' ? 'block':'none';
-});
-document.getElementById('save-manual-session').addEventListener('click', ()=>{
-  const tipo=document.getElementById('ms-tipo').value;
-  const fecha=document.getElementById('ms-fecha').value || TODAY;
-  const dist=parseFloat(document.getElementById('ms-dist').value)||0;
-  const dur=document.getElementById('ms-dur').value||'';
-  const entry = tipo==='Carrera' ? {tipo:'Carrera', fecha, dist, ritmo:'', fc:null, rpe:rpeSeleccionado} : {tipo:'Fuerza', fecha, duracion:dur, fc:null, rpe:rpeSeleccionado};
+/* ================= SESIÓN A MANO (desde la tarjeta de cada día) ================= */
+function guardarSesionManual(o){
+  const tipo=o.tipo||'Carrera', fecha=o.fecha||TODAY;
+  const entry = tipo==='Carrera' ? {tipo:'Carrera', fecha, dist:o.dist||0, ritmo:'', duracion:o.dur||'', fc:null, rpe:o.rpe||null} : {tipo, fecha, duracion:o.dur||'', fc:null, rpe:o.rpe||null};
   state.manualSessions.push(entry);
   saveState(); renderAll(); updateCharts();
-  toast('Sesión registrada (manual)');
-});
-
+}
 /* ================= IMPORTACIÓN DE DATOS DE GARMIN ================= */
 function importarJSONGarmin(texto){
   const {actividades, sueno, weeklyManual, ignoradas}=parseGarminAPIJSON(texto);
@@ -4699,6 +4707,8 @@ function cargaDeActividad(a){
   const k=kmEquivalentes(a);
   return k>=0.8*ref ? 'alta' : (k>=0.5*ref ? 'media' : 'baja');
 }
+// Pasados 10 días sin anotar cómo fue una sesión, pasa a "sin registro": se entiende que fue normal (no se reclama ni se echa en falta)
+function sinRegistroNormal(fecha){ return daysBetween(fecha,TODAY)>10 && !(state.sesionNotas||{})[fecha]; }
 function actividadesDelDia(fecha){ return todasActividades().filter(a=>a.fecha===fecha); }
 function cargaDelDia(fecha){
   const acts=actividadesDelDia(fecha); const orden={baja:1, media:2, alta:3};
@@ -4797,12 +4807,12 @@ function renderCalendario(){
     const acts=actividadesDelDia(f).filter(a=>['Carrera','Fuerza','Estiramientos'].includes(a.tipo));
     const nota=(state.sesionNotas||{})[f];
     const ico=acts.map(a=>({Carrera:'🏃',Fuerza:'🏋️',Estiramientos:'🧘'}[a.tipo])).join('');
-    if(acts.length && !nota && f<TODAY) pend++;
-    celdas+=`<button class="cal-dia${f===TODAY?' hoy':''}" data-f="${f}" ${acts.length?'':'disabled'}><b>${d}</b><span>${ico||'·'}</span><i>${acts.length?(nota?'✓':(f<TODAY?'○':'')):''}</i></button>`;
+    if(acts.length && !nota && f<TODAY && !sinRegistroNormal(f)) pend++;
+    celdas+=`<button class="cal-dia${f===TODAY?' hoy':''}" data-f="${f}" ${acts.length?'':'disabled'}><b>${d}</b><span>${ico||'·'}</span><i>${acts.length?(nota?'✓':(f<TODAY?(sinRegistroNormal(f)?'–':'○'):'')):''}</i></button>`;
   }
   el.innerHTML=`<div class="btn-row" style="margin-top:0; align-items:center; justify-content:space-between;"><button class="btn ghost small cal-nav" data-d="-1">‹</button><b style="font-size:13px;">${MESES[m-1]} ${y}</b><button class="btn ghost small cal-nav" data-d="1">›</button></div>
     <div class="cal-grid" style="margin-top:8px;">${['L','M','X','J','V','S','D'].map(x=>`<div class="cal-cab">${x}</div>`).join('')}${celdas}</div>
-    <div style="font-size:11px; color:var(--text-dim); margin-top:8px; line-height:1.5;">Toca un día con sesión para ver su análisis y anotar cómo te fue. ✓ = ya anotada · ○ = sin anotar.${pend?` <b style="color:var(--text)">Tienes ${pend} sin anotar este mes.</b>`:''}</div>`;
+    <div style="font-size:11px; color:var(--text-dim); margin-top:8px; line-height:1.5;">Toca un día con sesión para ver su análisis y anotar cómo te fue. ✓ = ya anotada · ○ = sin anotar · – = sin registro (pasados 10 días se entiende que fue normal).${pend?` <b style="color:var(--text)">Tienes ${pend} sin anotar este mes.</b>`:''}</div>`;
   el.querySelectorAll('.cal-nav').forEach(b=>b.addEventListener('click',()=>{ const d=new Date(`${mes}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth()+(+b.dataset.d)); __calMes=d.toISOString().slice(0,7); renderCalendario(); }));
   el.querySelectorAll('.cal-dia:not([disabled])').forEach(b=>b.addEventListener('click',()=>{
     const acts=actividadesDelDia(b.dataset.f).filter(a=>['Carrera','Fuerza','Estiramientos'].includes(a.tipo)).sort((a,c)=>(c.tipo==='Carrera')-(a.tipo==='Carrera'));
@@ -5250,7 +5260,7 @@ function analizarSesion(a){
       if(suave===true && nota.rpe==='duro') M('recuperacion','Dijiste que se te hizo duro en una sesión suave: es una señal de fatiga acumulada.','Descansa o haz algo muy suave mañana y vigila el sueño.');
       else if(calidad && nota.rpe==='suave') B('recuperacion','Una sesión de calidad que te pareció suave: buena tolerancia al esfuerzo.');
       else if(nota.rpe==='normal') N('recuperacion','Sensación normal: ni sobrada ni al límite.');
-    } else faltan.push('tu sensación (pulsa "Cómo me ha ido" para decirme si se te hizo suave, normal o duro)');
+    } else if(!sinRegistroNormal(a.fecha)) faltan.push('tu sensación (pulsa "Cómo me ha ido" para decirme si se te hizo suave, normal o duro)');
     // efecto de entrenamiento de Garmin, si lo hay
     if(a.teAerobico!=null){
       const te=a.teAerobico;
@@ -5321,7 +5331,7 @@ function analizarSesion(a){
     B('clase',`Hiciste ${a.duracion||'tu sesión'} de ${a.deporteLabel||'funcional'}${a.fc?` con ${a.fc} ppm de media (zona ${zonaDeFC(a.fc).zona})`:''}: cuenta como carga ${{alta:'alta',media:'media',baja:'baja'}[carga]}.`);
     if(man && man.tipo==='Carrera' && (carga==='alta')) M('clase',`Mañana toca ${descripcionDia(man)} y hoy ha sido una clase exigente: llegarás con las piernas cargadas.`,'Haz mañana el rodaje muy suave, o cámbialo por descanso si las notas pesadas.');
     if(nota && nota.rpe==='duro' && man && man.tipo==='Carrera') N('recuperacion','La clase se te hizo dura: tenlo en cuenta para la intensidad de mañana.');
-    if(!nota) faltan.push('tu sensación (pulsa "Cómo me ha ido")');
+    if(!nota && !sinRegistroNormal(a.fecha)) faltan.push('tu sensación (pulsa "Cómo me ha ido")');
     faltan.push('qué ejercicios hiciste y con qué peso: el reloj no lo registra');
   } else {
     B('perfil','Sesión de movilidad o estiramientos hecha: ayuda a recuperar y a mantener el rango de movimiento.');
@@ -5697,7 +5707,7 @@ function renderPlanCompleto(){
     resumen=`Estás en fase <b style="color:var(--text)">${fase}</b>: ${FASE_DESC[state.fase.actual]||''}. ${vol} Tu meta de distancia es <b style="color:var(--text)">${objKmP} km</b> por salida${sost?` y ahora mantienes con regularidad unos ${sost} km`:''}. Si añades una carrera con prioridad A (Semana › Añadir una carrera o salida), el plan se reorganiza hacia ella. Arriba, en el selector de semanas, ves las próximas ${nSem}; el resto se va generando solo.`;
   }
   resumen += `<br><br>Esta semana: <b style="color:var(--text)">${nRun}</b> sesiones de running, <b style="color:var(--text)">${nFz}</b> de funcional y <b style="color:var(--text)">${nEs}</b> de estiramientos.`;
-  document.getElementById('plan-resumen-titulo').textContent = meta ? `Camino a ${meta.nombre}` : (state.profile.busco==='cuidarme' ? 'Tu plan para cuidarte' : `Hacia tu meta de ${state.profile.objetivoKm||10} km`);
+  $ausente('plan-resumen-titulo').textContent = meta ? `Camino a ${meta.nombre}` : (state.profile.busco==='cuidarme' ? 'Tu plan para cuidarte' : `Hacia tu meta de ${state.profile.objetivoKm||10} km`);
   // Si la meta se rellenó sola en versiones anteriores (no la eligió la persona), se pregunta una vez
   if(!meta && !state.profile.metaElegida){
     const etq=v=>v===21.1?'Media (21)':(v===42.2?'Maratón (42)':v+' km');
@@ -5705,7 +5715,7 @@ function renderPlanCompleto(){
       <div class="btn-row">${[5,10,15,21.1,30,42.2].map(v=>`<button class="btn small meta-btn" data-v="${v}">${etq(v)}</button>`).join('')}</div>
       <div class="btn-row"><input type="number" id="meta-otra" step="0.5" placeholder="otra distancia (km)" style="flex:1; min-width:0;"><button class="btn small" id="meta-otra-ok">Usar</button></div></div>`;
   }
-  document.getElementById('plan-resumen').innerHTML = resumen;
+  $ausente('plan-resumen').innerHTML = resumen;
 
   const nombres=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
   const bloques=[];
@@ -5823,7 +5833,7 @@ function semDiaCuerpo(f){
   if(acts.length && f<=TODAY){
     h+=acts.map((a,i)=>`<div class="sem-act" data-f="${f}" data-i="${i}">✓ ${escapeHTML(resumenActividad(a))}<span class="tag">ver análisis ›</span></div>`).join('');
     if(dia && dia.tipo!=='Descanso') h+=`<div class="sem-prev">Estaba previsto: ${escapeHTML(descripcionDia(dia))}</div>`;
-    return h+semDiaExtra(f);
+    return h+semManualHTML(f)+semDiaExtra(f);
   }
   if(!dia) return '<div class="sem-prev">Aún no hay plan para este día.</div>';
   if(dia.tipo==='Descanso') return `<div class="sem-prev">${dia.ajusteClaude?'Descanso acordado tras consultar a Claude. ':''}Día libre de entrenamiento: descansar también es entrenar.</div>${dia.aviso?`<div class="alert low"><div class="icon">⚠️</div><div class="txt"><span>${escapeHTML(dia.aviso)}</span></div></div>`:''}${semDiaExtra(f)}`;
@@ -5832,7 +5842,8 @@ function semDiaCuerpo(f){
   if(dia.nota) h+=`<div class="sem-prev">📝 ${escapeHTML(dia.nota)}</div>`;
   if((dia.pasos||[]).length) h+=`<details class="plegable" style="margin-top:8px;"><summary style="font-size:12px;">Ver cómo hacerla</summary><div class="coach-plan" style="margin-top:8px;">${renderPasosHTML(dia.pasos)}</div><div class="interp">${glosarioDe(dia)}</div></details>`;
   if(dia.tipo==='Carrera' && esFuturoOHoy) h+=terrenoSelectorHTML(f, dia, true);
-  if(f<TODAY) h+='<div class="sem-prev">Esta sesión no quedó registrada en Garmin.</div>';
+  if(f<TODAY) h+='<div class="sem-prev">Esta sesión no quedó registrada en Garmin.</div>'+semNoHechoHTML(f);
+  if(f<=TODAY) h+=semManualHTML(f);
   return h+semDiaExtra(f);
 }
 function semDiaHTML(f){
@@ -5871,6 +5882,7 @@ function renderSemana(){
   // hoy, con todo el detalle, solo en la semana actual
   const sh=document.getElementById('sem-hoy'); if(sh) sh.style.display = esActual ? '' : 'none';
   const nb=document.getElementById('sem-nutri-body'); if(nb && esActual) nb.innerHTML=nutriDiaHTML(TODAY);
+  const mh=document.getElementById('sem-manual-hoy'); if(mh) mh.innerHTML = esActual ? `<div style="margin:-6px 0 14px;">${semManualHTML(TODAY)}</div>` : '';
   const spd=document.getElementById('sem-perdidas'); if(spd){ const ph=esActual?perdidasHTML():''; spd.innerHTML=ph?`<div class="card"><h3>Sesiones no hechas</h3>${ph}</div>`:''; }
   const dias=[]; for(let i=0;i<7;i++) dias.push(sumarDias(lunes,i));
   let html='';
@@ -6104,7 +6116,7 @@ function renderClaudeRealizado(el){
   const dr=window.__relDraft=window.__relDraft||{fecha:TODAY, animo:'', mol:'no', zona:'', nivel:0};
   const zonas=[...(document.getElementById('mol-zona')||{options:[]}).options].map(o=>o.value);
   const seg=(k,vals,cur)=>`<div class="seg">${vals.map(v=>`<button type="button" class="rel-seg${String(cur)===String(v)?' selected':''}" data-k="${k}" data-v="${v}">${typeof v==='number'?v:v[0].toUpperCase()+v.slice(1)}</button>`).join('')}</div>`;
-  const sinNota=todasActividades().filter(a=>['Carrera','Fuerza'].includes(a.tipo) && daysBetween(a.fecha,TODAY)>=0 && daysBetween(a.fecha,TODAY)<=7 && !(state.sesionNotas||{})[a.fecha]).slice(0,4);
+  const sinNota=todasActividades().filter(a=>['Carrera','Fuerza'].includes(a.tipo) && daysBetween(a.fecha,TODAY)>=0 && daysBetween(a.fecha,TODAY)<=10 && !(state.sesionNotas||{})[a.fecha]).slice(0,4);
   const f=window.__diaF, zonasUsadas=[...new Set((state.diario||[]).flatMap(e=>e.tags.zona))], temasUsados=[...new Set((state.diario||[]).flatMap(e=>e.tags.tema))];
   el.innerHTML=`<div class="card"><h3>Anotar cómo te fue</h3>
       <div style="font-size:12px; color:var(--text-dim); line-height:1.5; margin-bottom:8px;">Cuéntalo con tus palabras, hoy o de días atrás. Lo guardo con etiquetas (zona y tema) y te digo qué efecto ha tenido en la app.</div>
@@ -6114,21 +6126,126 @@ function renderClaudeRealizado(el){
       ${dr.mol==='si'?`<div class="field"><label>Zona</label><select id="rel-zona">${zonas.map(z=>`<option${z===dr.zona?' selected':''}>${escapeHTML(z)}</option>`).join('')}</select></div><div class="field"><label>Dolor (1 apenas se nota · 5 intenso)</label>${seg('nivel',[1,2,3,4,5],dr.nivel)}</div>`:''}
       <div class="field"><label>Tu nota</label><textarea id="rel-texto" rows="3" placeholder="ej. Hoy la espalda bien al correr, pero al agacharme me tiraba un poco"></textarea></div>
       <button class="btn" id="rel-guardar" style="width:100%;">Guardar en mi diario</button></div>
-    ${sinNota.length?`<div class="card"><h3>Sesiones recientes sin anotar</h3>${sinNota.map(a=>`<div class="sem-act cl-sesion" data-f="${a.fecha}" data-t="${a.tipo}">${escapeHTML(fmtShort(a.fecha)+' · '+resumenActividad(a))}<span class="tag">anotar ›</span></div>`).join('')}</div>`:''}
+    ${sinNota.length?`<div class="card"><h3>Sesiones recientes sin anotar</h3><div class="sem-prev" style="margin:-4px 0 6px;">Si no anotas nada en 10 días, la sesión pasa a «sin registro» y se entiende que fue normal.</div>${sinNota.map(a=>`<div class="sem-act cl-sesion" data-f="${a.fecha}" data-t="${a.tipo}">${escapeHTML(fmtShort(a.fecha)+' · '+resumenActividad(a))}<span class="tag">anotar ›</span></div>`).join('')}</div>`:''}
     <div class="card"><h3>Tu diario <span class="muted">(se guarda en el dispositivo y en tu copia)</span></h3>
       <div class="field"><input type="text" id="di-q" placeholder="Buscar en el diario…" value="${escapeHTML(f.q||'')}"></div>
       <div style="margin-bottom:8px;"><span class="chip di-tag${!f.k?' sel':''}" data-k="" data-v="">Todo</span>${zonasUsadas.map(v=>`<span class="chip di-tag${f.k==='zona'&&f.v===v?' sel':''}" data-k="zona" data-v="${escapeHTML(v)}">📍 ${escapeHTML(v)}</span>`).join('')}${temasUsados.map(v=>`<span class="chip di-tag${f.k==='tema'&&f.v===v?' sel':''}" data-k="tema" data-v="${escapeHTML(v)}"># ${escapeHTML(v)}</span>`).join('')}</div>
       <div id="di-lista">${listaDiarioHTML()}</div></div>`;
 }
+/* ================= ANÁLISIS SEMANAL (v11.2): una lectura de la semana entera; solo se detallan las sesiones que lo merecen ================= */
+window.__anOff = window.__anOff || 0;
+function analisisSemanal(lunes){
+  const dom=sumarDias(lunes,6), esActual=TODAY>=lunes && TODAY<=dom, hasta=esActual?TODAY:dom;
+  const acts=todasActividades().filter(a=>a.fecha>=lunes && a.fecha<=hasta);
+  const carreras=acts.filter(a=>a.tipo==='Carrera').sort((a,b)=>a.fecha<b.fecha?-1:1), clases=acts.filter(a=>a.tipo==='Fuerza');
+  const bien=[], mejorar=[], notas=[], notables=[];
+  const B=(k,txt)=>bien.push({k,txt}), M=(k,txt,idea)=>mejorar.push({k,txt,idea}), N=(k,txt)=>notas.push({k,txt});
+  const fx=n=>String(Math.round(n*10)/10).replace('.',','), dw=f=>DOW_LARGO[new Date(f+'T00:00:00Z').getUTCDay()];
+  const km=+carreras.reduce((s,c)=>s+(c.dist||0),0).toFixed(1);
+  // 1) cumplimiento de lo previsto hasta hoy
+  const prevRun=[], prevClase=[];
+  for(let i=0;i<7;i++){
+    const f=sumarDias(lunes,i); if(f>hasta) break;
+    const d=diaDePlan(f); if(!d) continue;
+    if(d.tipo==='Carrera' || (d.tipo==='Evento' && d.subtipo!=='salida')) prevRun.push({f,d});
+    else if(esClase(d)) prevClase.push({f,d});
+  }
+  const hechasRun=prevRun.filter(p=>actividadesDelDia(p.f).some(a=>a.tipo==='Carrera')).length;
+  const sinHacer=prevRun.filter(p=>!actividadesDelDia(p.f).some(a=>a.tipo==='Carrera'));
+  if(prevRun.length){
+    if(!sinHacer.length) B('fase',`Cumpliste todas las salidas previstas hasta ${esActual?'hoy':'el domingo'} (${hechasRun} de ${prevRun.length}).`);
+    else {
+      const txt=`Salidas hechas: ${hechasRun} de ${prevRun.length} previstas. Sin hacer: ${sinHacer.map(p=>dw(p.f)+(motivoNoHechoTxt(p.f)?' ('+motivoNoHechoTxt(p.f)+')':'')).join(', ')}.`;
+      if(sinHacer.length>prevRun.length/2) M('fase',txt,'Si fue por tiempo o cansancio no pasa nada: el plan no acumula lo que no se hizo. Cuéntalo en el diario para que lo tenga en cuenta.'); else N('fase',txt);
+    }
+  }
+  if(prevClase.length) N('clase',`Clases de funcional: ${clases.length} de ${prevClase.length} previstas.`);
+  // 2) volumen frente a lo previsto
+  const kmPrev=prevRun.reduce((s,p)=>s+(p.d.distanciaKm||0),0);
+  if(kmPrev>0 && km>0){
+    const r=km/kmPrev;
+    if(r>=0.85 && r<=1.15) B('carga',`Hiciste ${fx(km)} km frente a ${fx(kmPrev)} previstos hasta ${esActual?'hoy':'el domingo'}: justo lo que tocaba.`);
+    else if(r<0.7) M('recuperacion',`Hiciste ${fx(km)} km frente a ${fx(kmPrev)} previstos: bastante menos.`,'Si fue por tiempo o cansancio, la semana lo absorbe; no intentes recuperarlo de golpe.');
+    else if(r>1.3) M('carga',`Hiciste ${fx(km)} km frente a ${fx(kmPrev)} previstos (+${Math.round((r-1)*100)} %): más carga de la que el plan contaba.`,'Los días siguientes, suaves; lo que te sobra de energía guárdalo para la tirada larga.');
+    else N('carga',`Hiciste ${fx(km)} km frente a ${fx(kmPrev)} previstos: ${r<1?'algo menos':'algo más'}, dentro de lo razonable.`);
+  } else if(km>0) N('carga',`${esActual?'Llevas':'Hiciste'} ${fx(km)} km${esActual?' esta semana':' esa semana'}.`);
+  // 3) reparto de intensidad (por pulsaciones medias de cada salida)
+  const conFC=carreras.filter(c=>c.fc && c.dist);
+  const kmFC=conFC.reduce((s,c)=>s+c.dist,0), kmSuave=conFC.filter(c=>['Z1','Z2'].includes(zonaDeFC(c.fc).zona)).reduce((s,c)=>s+c.dist,0);
+  if(kmFC>=6){
+    const pct=kmSuave/kmFC, hayCalidad=prevRun.some(p=>ES_CALIDAD(p.d.subtipo));
+    if(pct>=0.7) B('polarizado',`El ${Math.round(pct*100)} % de tus km fueron suaves (zonas 1-2): así se construye base sin acumular fatiga.`);
+    else if(pct<0.5 && prevRun.length && !hayCalidad) M('polarizado',`Solo el ${Math.round(pct*100)} % de tus km fueron suaves (zonas 1-2) y no había sesiones de calidad previstas: la semana salió más exigente de lo planeado.`,'En los rodajes suaves, ritmo de conversación y pulsaciones por debajo de tu zona 3.');
+    else N('polarizado',`El ${Math.round(pct*100)} % de tus km fueron suaves (zonas 1-2)${hayCalidad?', con sesión de calidad prevista esa semana':(prevRun.length?'':'; no tengo guardado el plan de esa semana para saber si fue a propósito')}.`);
+  }
+  // 4) carga de los últimos 7 días frente a tu hábito (solo la semana en curso)
+  if(esActual){
+    const rc=ratioCarga();
+    if(rc){
+      if(rc.ratio>1.3) M('carga',`Tu carga de los últimos 7 días (${rc.aguda} km equivalentes) está por encima de tu media de 4 semanas (${rc.cronica}): ratio ${String(rc.ratio).replace('.',',')}.`,'Evita encadenar dos sesiones exigentes y no subas el volumen la semana que viene.');
+      else if(rc.ratio>=0.8) B('carga',`Tu carga de los últimos 7 días (${rc.aguda} km equivalentes) está cerca de tu media de 4 semanas (${rc.cronica}): ratio ${String(rc.ratio).replace('.',',')}, dentro de tu hábito.`);
+      else N('carga',`Tu carga de los últimos 7 días (${rc.aguda} km equivalentes) está por debajo de tu media de 4 semanas (${rc.cronica}).`);
+    }
+  }
+  // 5) cadencia de la semana
+  const cad=carreras.filter(c=>c.cadencia>0 && c.dist>=3 && (c.superficie||'asfalto')==='asfalto' && !(c.desnivelM && c.desnivelM/c.dist>=30)).map(c=>c.cadencia), ct=cadenciaTipica();
+  if(cad.length){
+    const mc=Math.round(mediana(cad)), pc=planCadencia(lunes);
+    N('cadencia',`Cadencia de la semana: ~${mc} pasos/min en asfalto${ct?` (tu media de las últimas 12 semanas: ${ct.mediana})`:''}${pc?`; esta semana trabajabas ${pc.objetivo} en los bloques`:''}.`);
+  }
+  // 6) recuperación: sueño y pulso en reposo frente a las 3 semanas anteriores
+  const su=todoSueno(), wk=su.filter(s=>s.fecha>=lunes && s.fecha<=hasta), pv=su.filter(s=>s.fecha<lunes && s.fecha>=sumarDias(lunes,-21));
+  if(wk.length>=3 && pv.length>=7){
+    const sW=avg(wk,'puntuacion'), sP=avg(pv,'puntuacion'), fW=avg(wk,'fcReposo'), fP=avg(pv,'fcReposo');
+    const peorS=sW!=null && sP!=null && sW<=sP-5, peorF=fW!=null && fP!=null && fW>=fP+2;
+    const txt=`Sueño medio ${sW!=null?Math.round(sW):'–'} (3 semanas anteriores: ${sP!=null?Math.round(sP):'–'}) y pulso en reposo ${fW!=null?fx(fW):'–'} ppm (antes ${fP!=null?fx(fP):'–'}).`;
+    if(peorS && peorF) M('recuperacion',txt+' Las dos señales han empeorado a la vez.','Esta semana pide descanso y rodajes suaves; vigila el sueño.');
+    else if(peorS || peorF) N('recuperacion',txt+' Una de las dos ha empeorado: vigílalo, no es alarmante por sí solo.');
+    else B('recuperacion',txt+' Estable: buena recuperación.');
+  }
+  // 7) molestia de la semana
+  const diasMol=[]; for(let i=0;i<7;i++){ const f=sumarDias(lunes,i); if(f<=hasta && molestiaDelDia(f)) diasMol.push(f); }
+  if(diasMol.length){ const z=(molestiaDelDia(diasMol[diasMol.length-1])||{}).zona; N('perfil',`Molestia anotada ${diasMol.length} día${diasMol.length>1?'s':''} esta semana${z?' ('+z+')':''}. Las salidas de esos días cuentan como pruebas suaves.`); }
+  // 8) solo las sesiones que se salen de lo normal
+  carreras.forEach(a=>{
+    const r=analizarSesion(a), nota=(state.sesionNotas||{})[a.fecha], raz=[];
+    const m=r.mejorar.find(x=>['carga','recuperacion','polarizado'].includes(x.k)); if(m) raz.push(m.txt);
+    if(molestiaDelDia(a.fecha)) raz.push('Hecha con molestia anotada ese día.');
+    if(nota && nota.molestia) raz.push(`Anotaste molestia tras la sesión (${nota.zona||'sin zona'}, ${nota.nivel||'?'}/5).`);
+    if(nota && nota.rpe==='duro') raz.push('Dijiste que se te hizo dura.');
+    if(raz.length) notables.push({a, raz:[...new Set(raz)].slice(0,2)});
+  });
+  // 9) la semana que viene
+  const pn=planParaFecha(sumarDias(lunes,7));
+  let proximo='';
+  if(esActual){
+    const pk=pn && pn.targetWeekKm ? `La semana que viene el plan prevé ~${fx(pn.targetWeekKm)} km${pn.taper?' (puesta a punto)':''}${pn.descarga?' (semana de descarga)':''}. ` : '';
+    proximo = pk + (mejorar.length ? 'Como esta semana hay algo que vigilar, no subas la intensidad y deja que el plan marque el ritmo; si algo te preocupa, cuéntaselo a Claude en la pestaña Futuro.' : 'Sigue con el plan: esta semana no hay nada que corregir.');
+  }
+  return {lunes, dom, esActual, km, carreras:carreras.length, clases:clases.length, prevRun:prevRun.length, bien, mejorar, notas, notables, proximo};
+}
 function renderClaudeAnalisis(el){
-  const acts=todasActividades().filter(a=>['Carrera','Fuerza'].includes(a.tipo)).slice(0,4);
-  const eps=episodiosMolestia(), rec=recurrenciaMolestia();
-  const perd=perdidasHTML();
-  el.innerHTML=`${perd?`<div class="card"><h3>Sesiones no hechas</h3>${perd}<div class="sem-prev">Solo se mueve con tu toque y dentro de la semana; si no cabe, te lo explico. Nunca se acumula.</div></div>`:''}
-    <div class="card"><h3>Tus últimas sesiones</h3>${acts.length?acts.map((a,i)=>`<details class="plegable" ${i===0?'open':''} style="margin-bottom:8px;"><summary style="font-size:12.5px;">${escapeHTML(fmtShort(a.fecha)+' · '+resumenActividad(a))}</summary><div style="margin-top:6px;">${analisisHTML(a)}</div></details>`).join(''):'<div style="font-size:12px; color:var(--text-dim);">Aún no hay sesiones de Garmin.</div>'}</div>
+  const actual=mondayOfIsoWeek(isoWeek(TODAY)), off=Math.min(3,Math.max(0,window.__anOff||0)), lunes=sumarDias(actual,-7*off), r=analisisSemanal(lunes);
+  const eps=episodiosMolestia(), rec=recurrenciaMolestia(), perd=perdidasHTML();
+  const grupo=(tit,arr)=>arr.length ? `<div style="font-size:12px; font-weight:600; margin:10px 0 2px;">${tit}</div>${arr.map(itemPorQueHTML).join('')}` : '';
+  const chips=[0,1,2,3].map(i=>{ const l=sumarDias(actual,-7*i); return `<button type="button" class="sem-chip an-chip${i===off?' sel':''}" data-o="${i}"><b>${i===0?'Esta semana':(i===1?'Semana pasada':'Hace '+i+' semanas')}</b><span>${fmtShort(l)}–${fmtShort(sumarDias(l,6))}</span></button>`; }).join('');
+  const sinDatos = !r.carreras && !r.clases;
+  el.innerHTML=`<div class="sem-sel" style="margin-bottom:10px;">${chips}</div>
+    <div class="card"><h3>Análisis de la semana <span class="muted">${fmtShort(r.lunes)}–${fmtShort(r.dom)}</span></h3>
+      <div class="hero-chips" style="margin-top:0;"><div class="hero-chip"><b>${String(r.km).replace('.',',')} km</b><span>corridos</span></div><div class="hero-chip"><b>${r.carreras}${r.prevRun?' / '+r.prevRun:''}</b><span>salidas</span></div><div class="hero-chip"><b>${r.clases}</b><span>clases</span></div></div>
+      ${sinDatos?`<div style="font-size:12px; color:var(--text-dim); margin-top:8px;">${r.esActual?'Esta semana aún no hay sesiones de Garmin.':'Esa semana no hay sesiones de Garmin.'}</div>`:''}
+      ${grupo('✅ Lo que ha ido bien', r.bien)}${grupo('🔧 Qué vigilar', r.mejorar.map(x=>Object.assign({},x)))}${grupo('📌 A tener en cuenta', r.notas)}
+      ${r.notables.length?`<div style="font-size:12px; font-weight:600; margin:12px 0 4px;">Sesiones que merecen atención</div>${r.notables.map(n=>`<div class="sem-act cl-sesion" data-f="${n.a.fecha}" data-t="Carrera"><span>${escapeHTML(fmtShort(n.a.fecha)+' · '+resumenActividad(n.a))}<br><span style="color:var(--text-dim); font-size:11.5px;">${n.raz.map(escapeHTML).join(' ')}</span></span><span class="tag">ver ›</span></div>`).join('')}`:`<div class="sem-prev" style="margin-top:10px;">${r.carreras?'Ninguna sesión se sale de lo normal: no hace falta analizarlas una a una.':''}</div>`}
+      ${r.proximo?`<div style="font-size:12.5px; line-height:1.5; margin-top:12px; padding:8px 10px; background:var(--accent-soft); border-radius:10px;"><b>Para la semana que viene:</b> ${escapeHTML(r.proximo)}</div>`:''}
+      <div class="sem-prev">Lectura de la semana con tus datos y reglas sencillas; orientación general, no sustituye a un entrenador ni a un profesional de la salud. Toca una razón para ver de dónde sale.</div></div>
+    ${perd?`<div class="card"><h3>Sesiones no hechas</h3>${perd}<div class="sem-prev">Solo se mueve con tu toque y dentro de la semana; si no cabe, te lo explico. Nunca se acumula.</div></div>`:''}
     <div class="card"><h3>Tu historial de molestias</h3>${rec?`<div class="alert low"><div class="icon">🔁</div><div class="txt"><strong>Esto ya te pasó</strong><span>${escapeHTML(textoRecurrencia(rec))} Cuéntaselo a Claude: lo que funcionó entonces ayuda ahora.</span></div></div>`:''}
       ${eps.length?eps.map(x=>`<div class="di-item"><b style="font-size:12.5px;">${escapeHTML(x.zona||'Sin zona')}</b> <span class="tag">${x.abierto?'abierta':'cerrada'}</span><div style="font-size:12px; color:var(--text-dim); line-height:1.5;">${fmtShort(x.inicio)} → ${x.abierto?'sigue':fmtShort(x.fin)} · ${x.dias} día${x.dias>1?'s':''} · hasta ${x.nivelMax}/5${x.agrava.length?' · te molestaba al '+escapeHTML(x.agrava.join(', ')):''}${x.notas.length?'<br>“'+escapeHTML(x.notas[0])+'”':''}</div></div>`).join(''):'<div style="font-size:12px; color:var(--text-dim);">Todavía no hay molestias anotadas. Cuando haya, aquí queda cada episodio, para reconocerlo si vuelve.</div>'}</div>`;
 }
+document.addEventListener('click', e=>{
+  const c=e.target.closest('.an-chip'); if(!c) return;
+  window.__anOff=+c.dataset.o; renderClaudeAnalisis(document.getElementById('cl-otro'));
+});
 let __cfT=null;
 document.addEventListener('input', e=>{
   if(e.target.id==='di-q'){ window.__diaF.q=e.target.value; const l=document.getElementById('di-lista'); if(l) l.innerHTML=listaDiarioHTML(); }
